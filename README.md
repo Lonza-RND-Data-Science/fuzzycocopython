@@ -1,13 +1,13 @@
 # FuzzyCocoPython
 
-[![Tests](https://github.com/arthurbabey/fuzzycocopython/actions/workflows/tests.yml/badge.svg)](https://github.com/arthurbabey/fuzzycocopython/actions/workflows/tests.yml)
-[![Build](https://github.com/arthurbabey/fuzzycocopython/actions/workflows/build.yml/badge.svg)](https://github.com/arthurbabey/fuzzycocopython/actions/workflows/build.yml)
-[![Coverage](https://img.shields.io/badge/coverage-pytest--cov-blue)](https://github.com/arthurbabey/fuzzycocopython/actions/workflows/tests.yml)
+[![Tests](https://github.com/Lonza-RND-Data-Science/fuzzycocopython/actions/workflows/tests.yml/badge.svg)](https://github.com/Lonza-RND-Data-Science/fuzzycocopython/actions/workflows/tests.yml)
+[![Build](https://github.com/Lonza-RND-Data-Science/fuzzycocopython/actions/workflows/build.yml/badge.svg)](https://github.com/Lonza-RND-Data-Science/fuzzycocopython/actions/workflows/build.yml)
+[![Coverage](https://img.shields.io/badge/coverage-pytest--cov-blue)](https://github.com/Lonza-RND-Data-Science/fuzzycocopython/actions/workflows/tests.yml)
 [![PyPI](https://img.shields.io/badge/PyPI-pending-lightgrey)](https://pypi.org/project/fuzzycocopython/)
 [![License: AGPL-3.0-or-later](https://img.shields.io/badge/license-AGPL--3.0--or--later-success)](https://www.gnu.org/licenses/agpl-3.0.html)
 [![Python Versions](https://img.shields.io/badge/python-3.10%20%E2%80%93%203.14-blue)](#installation)
 
-[Documentation](https://arthurbabey.github.io/fuzzycocopython/)
+[Documentation](https://Lonza-RND-Data-Science.github.io/fuzzycocopython/)
 
 
 Python bindings and scikit-learn style estimators for [fuzzycoco](https://github.com/Lonza-RND-Data-Science/fuzzycoco),
@@ -31,7 +31,7 @@ This package is not yet on PyPI; install it from source. Make sure the following
 Clone the repository, initialise the `fuzzycoco` submodule, then build and install in editable mode with uv:
 
 ```bash
-git clone https://github.com/arthurbabey/fuzzycocopython.git
+git clone https://github.com/Lonza-RND-Data-Science/fuzzycocopython.git
 cd fuzzycocopython
 git submodule update --init --recursive
 
@@ -57,7 +57,7 @@ uv pip install -e '.[dev]'
 ```
 
 The build compiles the bundled C++ bindings. Refer to the
-[`fuzzycoco` project](https://github.com/arthurbabey/fuzzycoco) for background on the engine itself.
+[`fuzzycoco` project](https://github.com/Lonza-RND-Data-Science/fuzzycoco) for background on the engine itself.
 
 ## Quick start
 
@@ -81,7 +81,7 @@ For a guided tour, open `demo.ipynb`. Additional usage examples live in `tests/t
 
 ## Documentation
 
-Full API documentation is available at [arthurbabey.github.io/fuzzycocopython](https://arthurbabey.github.io/fuzzycocopython/).
+Full API documentation is available at [Lonza-RND-Data-Science.github.io/fuzzycocopython](https://Lonza-RND-Data-Science.github.io/fuzzycocopython/).
 To build the docs locally run:
 
 ```bash
