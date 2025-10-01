@@ -1,0 +1,67 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: ${{ matrix.os }} / Python ${{ matrix.python-version }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            python-version: '3.10'
+          - os: ubuntu-latest
+            python-version: '3.11'
+          - os: ubuntu-latest
+            python-version: '3.12'
+          - os: ubuntu-latest
+            python-version: '3.13'
+          - os: ubuntu-latest
+            python-version: '3.14'
+          - os: macos-latest
+            python-version: '3.12'
+          - os: windows-latest
+            python-version: '3.12'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up uv with Python
+        uses: astral-sh/setup-uv@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+          activate-environment: true
+
+      - name: Install build dependencies
+        run: uv pip install build ninja cmake
+
+      - name: Install from source
+        run: uv pip install -e .
+
+      - name: Smoke test import (source build)
+        run: uv run python -c "import fuzzycocopython; print(fuzzycocopython.__version__)"
+
+      - name: Clean previous wheels
+        run: uv run python -c "import shutil; shutil.rmtree('dist', ignore_errors=True)"
+
+      - name: Build wheel
+        run: uv run python -m build --wheel --sdist
+
+      - name: Install from wheel
+        shell: bash
+        run: |
+          set -euo pipefail
+          wheel=$(ls dist/fuzzycocopython-*.whl | head -n 1)
+          uv pip install --force-reinstall "$wheel"
+
+      - name: Smoke test import (wheel)
+        run: uv run python -c "import fuzzycocopython; print(fuzzycocopython.__version__)"

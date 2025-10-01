@@ -1,0 +1,153 @@
+[project]
+name = "fuzzycocopython"
+version = "0.0.1"
+description = "Python API for FuzzyCoco using C++ bindings"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [
+    {name = "Arthur Babey", email = "arthur.babey@heig-vd.ch"}
+]
+license = {text = "AGPL-3.0-or-later"}
+keywords = ["fuzzycoco", "fuzzy-logic", "sklearn", "bindings"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: GNU Affero General Public License v3",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Programming Language :: C++",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+    "numpy",
+    "scikit-learn>=1.1.3",
+    "pandas>2.0",
+    "lfa_toolbox @ git+https://github.com/arthurbabey/lfa_toolbox.git@master",
+    "joblib",
+]
+
+[project.urls]
+Homepage = "https://github.com/arthurbabey/fuzzycocopython"
+Documentation = "https://arthurbabey.github.io/fuzzycocopython/"
+Issues = "https://github.com/arthurbabey/fuzzycocopython/issues"
+
+[project.optional-dependencies]
+dev = [
+    "mypy",
+    "pre-commit",
+    "pytest",
+    "pytest-cov",
+    "ruff",
+]
+docs = [
+    "sphinx>=7.0",
+    "sphinx-rtd-theme>=1.3",
+    "myst-parser>=2.0",
+]
+
+[build-system]
+requires = ["scikit-build-core", "pybind11"]
+build-backend = "scikit_build_core.build"
+
+[tool.scikit-build]
+build.verbose = true
+logging.level = "INFO"
+# Use a per-tag build dir to avoid reusing caches across different paths/ABIs
+build-dir = "build/{wheel_tag}"
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+include = ["fuzzycocopython*"]
+exclude = ["fuzzycoco*"]
+
+[tool.setuptools.package-data]
+fuzzycocopython = ["*.so"]  # Ensure .so files are installed with the package
+
+[tool.ruff]
+target-version = "py310"
+line-length = 120
+src = ["fuzzycocopython", "tests"]
+extend-exclude = ["fuzzycoco"]
+
+[tool.ruff.lint]
+select = [
+    "E",
+    "F",
+    "I",
+    "B",
+    "UP",
+    "S",
+]
+ignore = ["E203"]
+fixable = ["ALL"]
+unfixable = []
+
+[tool.ruff.lint.isort]
+known-first-party = ["fuzzycocopython"]
+combine-as-imports = true
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S101"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+docstring-code-format = true
+line-ending = "lf"
+
+[tool.pytest.ini_options]
+addopts = "-ra --strict-config --strict-markers --maxfail=1 --cov=fuzzycocopython --cov-report=term-missing --cov-report=xml"
+testpaths = ["tests"]
+filterwarnings = [
+    "error::DeprecationWarning",
+    "error::FutureWarning",
+]
+
+[tool.coverage.run]
+branch = true
+source = ["fuzzycocopython"]
+omit = [
+    "fuzzycoco/*",
+    "fuzzycocopython/fuzzycoco_plot_mixin.py",
+]
+
+[tool.coverage.report]
+skip_covered = true
+show_missing = true
+fail_under = 75
+
+[tool.coverage.xml]
+output = "coverage.xml"
+
+[tool.mypy]
+python_version = "3.10"
+warn_unused_configs = true
+warn_return_any = true
+warn_unreachable = true
+no_implicit_optional = true
+show_error_codes = true
+strict_equality = true
+ignore_missing_imports = false
+exclude = ["^fuzzycoco/"]
+
+[[tool.mypy.overrides]]
+module = [
+    "fuzzycocopython._fuzzycoco_core",
+    "joblib",
+    "lfa_toolbox.*",
+    "matplotlib.*",
+    "numpy",
+    "numpy.*",
+    "pandas",
+    "pandas.*",
+    "pytest",
+    "sklearn",
+    "sklearn.*",
+]
+ignore_missing_imports = true

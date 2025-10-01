@@ -1,0 +1,40 @@
+name: docs
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write  # for gh-pages deploy using GITHUB_TOKEN
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up uv with Python
+        uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.10'
+          activate-environment: true
+
+      - name: Install package and docs deps
+        run: |
+          uv pip install -e .
+          uv pip install -r docs/requirements.txt
+
+      - name: Build Sphinx HTML
+        run: |
+          uv run sphinx-build -b html docs docs/_build/html
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: docs/_build/html
+          publish_branch: gh-pages
+          force_orphan: true
