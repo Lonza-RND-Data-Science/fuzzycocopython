@@ -368,6 +368,7 @@ class _FuzzyCocoBase(BaseEstimator):
         X_arr, y_arr = check_X_y(
             X,
             y,
+            multi_output=True,
             accept_sparse=False,
             ensure_2d=True,
             dtype=float,

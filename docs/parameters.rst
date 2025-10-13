@@ -69,6 +69,9 @@ FitnessParams
   value is expanded to match the number of outputs.
 - ``metrics_weights``: mapping of fitness metrics to weights. When omitted the classifier
   defaults to ``{"accuracy": 1.0}`` and the regressor defaults to ``{"rmse": 1.0}``.
+  All other known metrics are explicitly set to ``0.0`` so the engine does not fall back
+  to its internal sensitivity/specificity defaults. Unknown metric names raise
+  ``ValueError``.
 - ``features_weights`` (default ``None``): optional per-feature weights used by the fitness
   function.
 
@@ -129,6 +132,7 @@ inside ``fit`` and accepts the same keyword arguments plus dataset dimensions:
        pop_size_rules=100,
        pop_size_mfs=80,
    )
+   print(params.describe())
 
    # The helper is primarily intended for direct interaction with the low-level bindings.
 

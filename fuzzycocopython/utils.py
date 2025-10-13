@@ -9,6 +9,25 @@ from lfa_toolbox.core.rules.fuzzy_rule_element import Antecedent, Consequent
 
 from ._fuzzycoco_core import FuzzyCocoParams
 
+_METRICS_KEYS = (
+    "sensitivity",
+    "specificity",
+    "accuracy",
+    "ppv",
+    "rmse",
+    "rrse",
+    "rae",
+    "mse",
+    "distanceThreshold",
+    "distanceMinThreshold",
+    "nb_vars",
+    "overLearn",
+    "true_positives",
+    "false_positives",
+    "true_negatives",
+    "false_negatives",
+)
+
 
 def create_input_linguistic_variable(var_name, set_items):
     set_items = sorted(set_items, key=lambda s: s.get("position", 0))
@@ -177,8 +196,16 @@ def build_fuzzycoco_params(
     fitness_params = {
         "output_vars_defuzz_thresholds": [float(threshold)],
     }
-    if metrics_weights:
-        fitness_params["metrics_weights"] = dict(metrics_weights)
+    if metrics_weights is not None:
+        unknown_keys = sorted(set(metrics_weights) - set(_METRICS_KEYS))
+        if unknown_keys:
+            raise ValueError(
+                f"Unknown metrics_weights keys: {', '.join(unknown_keys)}",
+            )
+        normalized = {key: 0.0 for key in _METRICS_KEYS}
+        for key, value in metrics_weights.items():
+            normalized[key] = value
+        fitness_params["metrics_weights"] = normalized
     if features_weights:
         fitness_params["features_weights"] = dict(features_weights)
 
@@ -200,13 +227,6 @@ def build_fuzzycoco_params(
     }
 
     return FuzzyCocoParams.from_dict(desc)
-
-
-def make_fuzzy_params(*_, **__):
-    raise RuntimeError(
-        "make_fuzzy_params is no longer supported. Instantiate the estimator with "
-        "explicit keyword parameters instead."
-    )
 
 
 def _parse_variables(desc):
