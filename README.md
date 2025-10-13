@@ -77,6 +77,18 @@ print(f"Accuracy: {score:.3f}")
 print(clf.rules_df_.head())
 ```
 
+The estimators now expose scikit-learn style hyper-parameters for direct tuning:
+
+```python
+from fuzzycocopython import FuzzyCocoClassifier
+
+model = FuzzyCocoClassifier(nb_rules=10, nb_sets_in=3, random_state=42)
+model.fit(X, y)
+preds = model.predict(X)
+```
+
+Bit widths for variable and set indices are automatically derived from the training data. Override them with `nb_bits_vars_in`, `nb_bits_sets_in`, `nb_bits_vars_out`, or `nb_bits_sets_out` when you need full manual control.
+
 For a guided tour, open `demo.ipynb`. Additional usage examples live in `tests/test_fuzzycocopython.py`.
 
 ## Documentation

@@ -7,7 +7,7 @@ from lfa_toolbox.core.rules.default_fuzzy_rule import DefaultFuzzyRule
 from lfa_toolbox.core.rules.fuzzy_rule import FuzzyRule
 from lfa_toolbox.core.rules.fuzzy_rule_element import Antecedent, Consequent
 
-from ._fuzzycoco_core import EvolutionParams, FitnessParams, FuzzyCocoParams, GlobalParams, VarsParams
+from ._fuzzycoco_core import FuzzyCocoParams
 
 
 def create_input_linguistic_variable(var_name, set_items):
@@ -88,96 +88,125 @@ def _auto_bits(n):
     return int(np.ceil(np.log2(n)))
 
 
-def make_fuzzy_params(params=None, **flat_kwargs):
-    """Create a FuzzyCocoParams object from a nested dict or flat kwargs.
+def build_fuzzycoco_params(
+    *,
+    nb_features,
+    n_outputs,
+    nb_rules,
+    nb_max_var_per_rule,
+    max_generations,
+    max_fitness,
+    nb_cooperators,
+    influence_rules_initial_population,
+    influence_evolving_ratio,
+    nb_sets_in,
+    nb_sets_out,
+    nb_bits_pos_in,
+    nb_bits_pos_out,
+    nb_bits_vars_in=None,
+    nb_bits_sets_in=None,
+    nb_bits_vars_out=None,
+    nb_bits_sets_out=None,
+    pop_size_rules,
+    elite_size_rules,
+    cx_prob_rules,
+    mut_flip_genome_rules,
+    mut_flip_bit_rules,
+    pop_size_mfs,
+    elite_size_mfs,
+    cx_prob_mfs,
+    mut_flip_genome_mfs,
+    mut_flip_bit_mfs,
+    threshold,
+    metrics_weights=None,
+    features_weights=None,
+):
+    """Build a ``FuzzyCocoParams`` instance using explicit estimator parameters."""
 
-    The defaults and auto-computed values are aligned with the C++ engine:
-    - Bits for variable indices use the number of variables (not sets).
-    - Bits for set indices use the number of sets.
-    - ``nb_max_var_per_rule`` defaults to 3 if not provided.
+    def _bits_vars(value, override):
+        if override is not None:
+            return override
+        if value is None:
+            return None
+        return _auto_bits(value) + 1
 
-    Extra keys ``nb_input_vars`` and ``nb_output_vars`` may be passed to help
-    compute the correct bit widths.
-    """
-    params = params.copy() if params else {}
+    def _bits_sets(sets, override):
+        if override is not None:
+            return override
+        return _auto_bits(sets)
 
-    def get(sub, key, default):
-        return params.get(sub, {}).get(key, flat_kwargs.get(key, default))
+    bits_vars_in = _bits_vars(nb_features, nb_bits_vars_in)
+    bits_sets_in = _bits_sets(nb_sets_in, nb_bits_sets_in)
+    bits_vars_out = _bits_vars(n_outputs, nb_bits_vars_out)
+    bits_sets_out = _bits_sets(nb_sets_out, nb_bits_sets_out)
 
-    nb_input_vars = flat_kwargs.get("nb_input_vars")
-    nb_output_vars = flat_kwargs.get("nb_output_vars")
+    input_params = {
+        "nb_sets": nb_sets_in,
+        "nb_bits_pos": nb_bits_pos_in,
+    }
+    if bits_vars_in is not None:
+        input_params["nb_bits_vars"] = bits_vars_in
+    if bits_sets_in is not None:
+        input_params["nb_bits_sets"] = bits_sets_in
 
-    # Global
-    g = GlobalParams()
-    g.nb_rules = get("global_params", "nb_rules", 5)
-    g.nb_max_var_per_rule = get("global_params", "nb_max_var_per_rule", 3)
-    g.max_generations = get("global_params", "max_generations", 100)
-    g.max_fitness = get("global_params", "max_fitness", 1.0)
-    g.nb_cooperators = get("global_params", "nb_cooperators", 2)
-    g.influence_rules_initial_population = get("global_params", "influence_rules_initial_population", False)
-    g.influence_evolving_ratio = get("global_params", "influence_evolving_ratio", 0.8)
+    output_params = {
+        "nb_sets": nb_sets_out,
+        "nb_bits_pos": nb_bits_pos_out,
+    }
+    if bits_vars_out is not None:
+        output_params["nb_bits_vars"] = bits_vars_out
+    if bits_sets_out is not None:
+        output_params["nb_bits_sets"] = bits_sets_out
 
-    # Input vars
-    in_sets = get("input_vars_params", "nb_sets", 2)
-    in_vars = VarsParams()
-    in_vars.nb_sets = in_sets
-    # exact C++-like logic for bits
-    if get("input_vars_params", "nb_bits_vars", None) is not None:
-        in_vars.nb_bits_vars = get("input_vars_params", "nb_bits_vars", None)
-    elif nb_input_vars is not None:
-        in_vars.nb_bits_vars = _auto_bits(nb_input_vars) + 1
-    # else leave as default (missing) which would be invalid in C++ without evaluation
-    if get("input_vars_params", "nb_bits_sets", None) is not None:
-        in_vars.nb_bits_sets = get("input_vars_params", "nb_bits_sets", None)
-    else:
-        in_vars.nb_bits_sets = _auto_bits(in_sets)
-    in_vars.nb_bits_pos = get("input_vars_params", "nb_bits_pos", 8)
+    rules_params = {
+        "pop_size": pop_size_rules,
+        "elite_size": elite_size_rules,
+        "cx_prob": cx_prob_rules,
+        "mut_flip_genome": mut_flip_genome_rules,
+        "mut_flip_bit": mut_flip_bit_rules,
+    }
 
-    # Output vars
-    out_sets = get("output_vars_params", "nb_sets", 2)
-    out_vars = VarsParams()
-    out_vars.nb_sets = out_sets
-    if get("output_vars_params", "nb_bits_vars", None) is not None:
-        out_vars.nb_bits_vars = get("output_vars_params", "nb_bits_vars", None)
-    elif nb_output_vars is not None:
-        out_vars.nb_bits_vars = _auto_bits(nb_output_vars) + 1
-    if get("output_vars_params", "nb_bits_sets", None) is not None:
-        out_vars.nb_bits_sets = get("output_vars_params", "nb_bits_sets", None)
-    else:
-        out_vars.nb_bits_sets = _auto_bits(out_sets)
-    out_vars.nb_bits_pos = get("output_vars_params", "nb_bits_pos", 8)
+    mfs_params = {
+        "pop_size": pop_size_mfs,
+        "elite_size": elite_size_mfs,
+        "cx_prob": cx_prob_mfs,
+        "mut_flip_genome": mut_flip_genome_mfs,
+        "mut_flip_bit": mut_flip_bit_mfs,
+    }
 
-    # Evolution params
-    rules = EvolutionParams()
-    rules.pop_size = get("rules_params", "pop_size", 200)
-    rules.elite_size = get("rules_params", "elite_size", 5)
-    rules.cx_prob = get("rules_params", "cx_prob", 0.6)
-    rules.mut_flip_genome = get("rules_params", "mut_flip_genome", 0.4)
-    rules.mut_flip_bit = get("rules_params", "mut_flip_bit", 0.01)
+    fitness_params = {
+        "output_vars_defuzz_thresholds": [float(threshold)],
+    }
+    if metrics_weights:
+        fitness_params["metrics_weights"] = dict(metrics_weights)
+    if features_weights:
+        fitness_params["features_weights"] = dict(features_weights)
 
-    mfs = EvolutionParams()
-    mfs.pop_size = get("mfs_params", "pop_size", 200)
-    mfs.elite_size = get("mfs_params", "elite_size", 5)
-    mfs.cx_prob = get("mfs_params", "cx_prob", 0.9)
-    mfs.mut_flip_genome = get("mfs_params", "mut_flip_genome", 0.2)
-    mfs.mut_flip_bit = get("mfs_params", "mut_flip_bit", 0.01)
+    desc = {
+        "global_params": {
+            "nb_rules": nb_rules,
+            "nb_max_var_per_rule": nb_max_var_per_rule,
+            "max_generations": max_generations,
+            "max_fitness": max_fitness,
+            "nb_cooperators": nb_cooperators,
+            "influence_rules_initial_population": influence_rules_initial_population,
+            "influence_evolving_ratio": influence_evolving_ratio,
+        },
+        "input_vars_params": input_params,
+        "output_vars_params": output_params,
+        "rules_params": rules_params,
+        "mfs_params": mfs_params,
+        "fitness_params": fitness_params,
+    }
 
-    # Fitness
-    fit = FitnessParams()
-    fit.output_vars_defuzz_thresholds = [get("fitness_params", "threshold", flat_kwargs.get("threshold", 0.5))]
-    metrics_weights = get("fitness_params", "metrics_weights", flat_kwargs.get("metrics_weights", {}))
-    for k, v in metrics_weights.items():
-        setattr(fit.metrics_weights, k, v)
-    fit.features_weights = get("fitness_params", "features_weights", flat_kwargs.get("features_weights", {}))
+    return FuzzyCocoParams.from_dict(desc)
 
-    p = FuzzyCocoParams()
-    p.global_params = g
-    p.input_vars_params = in_vars
-    p.output_vars_params = out_vars
-    p.rules_params = rules
-    p.mfs_params = mfs
-    p.fitness_params = fit
-    return p
+
+def make_fuzzy_params(*_, **__):
+    raise RuntimeError(
+        "make_fuzzy_params is no longer supported. Instantiate the estimator with "
+        "explicit keyword parameters instead."
+    )
 
 
 def _parse_variables(desc):

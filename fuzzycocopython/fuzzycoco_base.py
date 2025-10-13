@@ -14,7 +14,7 @@ from sklearn.utils.validation import check_array, check_is_fitted, check_X_y
 from ._fuzzycoco_core import DataFrame, FuzzyCoco, FuzzyCocoParams, FuzzySystem, RandomGenerator
 from .fuzzycoco_plot_mixin import FuzzyCocoPlotMixin
 from .utils import (
-    make_fuzzy_params,
+    build_fuzzycoco_params,
     parse_fuzzy_system_from_description,
     to_linguistic_components,
     to_tables_components,
@@ -55,27 +55,140 @@ class _FuzzyCocoBase(BaseEstimator):
     underlying C++ engine.
     """
 
-    def __init__(self, params=None, random_state=None, params_overrides=None, **sk_params):
-        """Initialize the estimator.
+    _default_metrics_weights: dict[str, float] | None = None
 
-        Besides passing a full ``params`` object or nested dict, you can also
-        provide scikit-learn style flat parameters. Supported forms:
-          - Global fields directly, e.g. ``nb_rules=10``
-          - Nested using double-underscore, e.g. ``input_vars_params__nb_sets=3``
-        These are merged into ``params_overrides`` at fit time.
+    def __init__(
+        self,
+        nb_rules=5,
+        nb_max_var_per_rule=3,
+        max_generations=100,
+        max_fitness=1.0,
+        nb_cooperators=2,
+        influence_rules_initial_population=False,
+        influence_evolving_ratio=0.8,
+        nb_sets_in=2,
+        nb_sets_out=2,
+        pop_size_rules=200,
+        pop_size_mfs=200,
+        elite_size_rules=5,
+        elite_size_mfs=5,
+        cx_prob_rules=0.6,
+        cx_prob_mfs=0.9,
+        mut_flip_genome_rules=0.4,
+        mut_flip_genome_mfs=0.2,
+        mut_flip_bit_rules=0.01,
+        mut_flip_bit_mfs=0.01,
+        nb_bits_pos_in=8,
+        nb_bits_pos_out=8,
+        nb_bits_vars_in=None,
+        nb_bits_vars_out=None,
+        nb_bits_sets_in=None,
+        nb_bits_sets_out=None,
+        threshold=0.5,
+        metrics_weights=None,
+        features_weights=None,
+        random_state=None,
+    ):
+        """Initialize a FuzzyCoco estimator with explicit hyper-parameters.
+
+        Parameters
+        ----------
+        nb_rules : int, default=5
+            Number of fuzzy rules evolved during optimisation.
+        nb_max_var_per_rule : int, default=3
+            Maximum number of antecedents allowed in a rule.
+        max_generations : int, default=100
+            Evolution generations for both rule and membership function search.
+        max_fitness : float, default=1.0
+            Target fitness score that can trigger early stopping.
+        nb_cooperators : int, default=2
+            Number of cooperating agents in the fuzzy optimisation engine.
+        influence_rules_initial_population : bool, default=False
+            Whether to seed the population with rule influence heuristics.
+        influence_evolving_ratio : float, default=0.8
+            Ratio controlling how strongly influence is applied during evolution.
+        nb_sets_in : int, default=2
+            Number of linguistic sets per input variable.
+        nb_sets_out : int, default=2
+            Number of linguistic sets per output variable.
+        pop_size_rules : int, default=200
+            Population size for the rule genome evolution.
+        pop_size_mfs : int, default=200
+            Population size for the membership-function genome evolution.
+        elite_size_rules : int, default=5
+            Number of elite individuals kept each generation in the rule evolution.
+        elite_size_mfs : int, default=5
+            Number of elite individuals kept each generation in the membership evolution.
+        cx_prob_rules : float, default=0.6
+            Crossover probability for rule evolution.
+        cx_prob_mfs : float, default=0.9
+            Crossover probability for membership-function evolution.
+        mut_flip_genome_rules : float, default=0.4
+            Genome-level mutation probability for rules.
+        mut_flip_genome_mfs : float, default=0.2
+            Genome-level mutation probability for membership functions.
+        mut_flip_bit_rules : float, default=0.01
+            Bit-flip mutation probability for rules.
+        mut_flip_bit_mfs : float, default=0.01
+            Bit-flip mutation probability for membership functions.
+        nb_bits_pos_in : int, default=8
+            Bit width used to encode the positions of input membership functions.
+        nb_bits_pos_out : int, default=8
+            Bit width used to encode the positions of output membership functions.
+        nb_bits_vars_in : int | None, optional
+            Override for the automatically computed input variable bit width.
+        nb_bits_vars_out : int | None, optional
+            Override for the automatically computed output variable bit width.
+        nb_bits_sets_in : int | None, optional
+            Override for the automatically computed input set bit width.
+        nb_bits_sets_out : int | None, optional
+            Override for the automatically computed output set bit width.
+        threshold : float, default=0.5
+            Default singleton defuzzification threshold applied to each output.
+        metrics_weights : dict[str, float] | None, optional
+            Mapping of fitness metrics to weights. A sensible default is provided
+            by the classifier/regressor subclasses when omitted.
+        features_weights : dict[str, float] | None, optional
+            Optional per-feature weights used by the underlying fitness function.
+        random_state : int | RandomState | None, optional
+            Seed or NumPy-compatible random state for reproducibility.
         """
-        self.params = params
+
+        self.nb_rules = nb_rules
+        self.nb_max_var_per_rule = nb_max_var_per_rule
+        self.max_generations = max_generations
+        self.max_fitness = max_fitness
+        self.nb_cooperators = nb_cooperators
+        self.influence_rules_initial_population = influence_rules_initial_population
+        self.influence_evolving_ratio = influence_evolving_ratio
+        self.nb_sets_in = nb_sets_in
+        self.nb_sets_out = nb_sets_out
+        self.pop_size_rules = pop_size_rules
+        self.pop_size_mfs = pop_size_mfs
+        self.elite_size_rules = elite_size_rules
+        self.elite_size_mfs = elite_size_mfs
+        self.cx_prob_rules = cx_prob_rules
+        self.cx_prob_mfs = cx_prob_mfs
+        self.mut_flip_genome_rules = mut_flip_genome_rules
+        self.mut_flip_genome_mfs = mut_flip_genome_mfs
+        self.mut_flip_bit_rules = mut_flip_bit_rules
+        self.mut_flip_bit_mfs = mut_flip_bit_mfs
+        self.nb_bits_pos_in = nb_bits_pos_in
+        self.nb_bits_pos_out = nb_bits_pos_out
+        self.nb_bits_vars_in = nb_bits_vars_in
+        self.nb_bits_vars_out = nb_bits_vars_out
+        self.nb_bits_sets_in = nb_bits_sets_in
+        self.nb_bits_sets_out = nb_bits_sets_out
+        self.threshold = threshold
+        if metrics_weights is None:
+            default_metrics = self._default_metrics_weights
+            metrics = None if default_metrics is None else dict(default_metrics)
+        else:
+            metrics = metrics_weights
+        self.metrics_weights = metrics
+
+        self.features_weights = None if features_weights is None else features_weights
         self.random_state = random_state
-        # Merge flat sk_params into params_overrides as nested dicts
-        merged_overrides = dict(params_overrides or {})
-        if sk_params:
-            for k, v in sk_params.items():
-                if "__" in k:
-                    sect, key = k.split("__", 1)
-                    merged_overrides.setdefault(sect, {})[key] = v
-                else:
-                    merged_overrides.setdefault("global_params", {})[k] = v
-        self.params_overrides = merged_overrides or None
 
     # ──────────────────────────────────────────────────────────────────────
     # internal helpers
@@ -269,30 +382,46 @@ class _FuzzyCocoBase(BaseEstimator):
         self.target_name_in_ = resolved_target
         self.n_outputs_ = y_2d.shape[1]
 
-        overrides = dict(self.params_overrides or {})
-        if not self.params:
-            # default antecedents slots per rule (kept small by default)
-            gp = overrides.setdefault("global_params", {})
-            gp.setdefault("nb_max_var_per_rule", 3)
-            # Build params using dataset-aware defaults aligned with C++ logic
-            params_obj = make_fuzzy_params(
-                overrides,
-                nb_input_vars=X_arr.shape[1],
-                nb_output_vars=self.n_outputs_,
-            )
-        else:
-            params_obj = (
-                self.params
-                if isinstance(self.params, FuzzyCocoParams)
-                else make_fuzzy_params(
-                    self.params,
-                    nb_input_vars=X_arr.shape[1],
-                    nb_output_vars=self.n_outputs_,
-                )
-            )
+        metrics_weights = self.metrics_weights
+        if metrics_weights is None:
+            metrics_weights = self._default_metrics_weights
+
+        params_obj = build_fuzzycoco_params(
+            nb_features=self.n_features_in_,
+            n_outputs=self.n_outputs_,
+            nb_rules=self.nb_rules,
+            nb_max_var_per_rule=self.nb_max_var_per_rule,
+            max_generations=self.max_generations,
+            max_fitness=self.max_fitness,
+            nb_cooperators=self.nb_cooperators,
+            influence_rules_initial_population=self.influence_rules_initial_population,
+            influence_evolving_ratio=self.influence_evolving_ratio,
+            nb_sets_in=self.nb_sets_in,
+            nb_sets_out=self.nb_sets_out,
+            nb_bits_pos_in=self.nb_bits_pos_in,
+            nb_bits_pos_out=self.nb_bits_pos_out,
+            nb_bits_vars_in=self.nb_bits_vars_in,
+            nb_bits_vars_out=self.nb_bits_vars_out,
+            nb_bits_sets_in=self.nb_bits_sets_in,
+            nb_bits_sets_out=self.nb_bits_sets_out,
+            pop_size_rules=self.pop_size_rules,
+            elite_size_rules=self.elite_size_rules,
+            cx_prob_rules=self.cx_prob_rules,
+            mut_flip_genome_rules=self.mut_flip_genome_rules,
+            mut_flip_bit_rules=self.mut_flip_bit_rules,
+            pop_size_mfs=self.pop_size_mfs,
+            elite_size_mfs=self.elite_size_mfs,
+            cx_prob_mfs=self.cx_prob_mfs,
+            mut_flip_genome_mfs=self.mut_flip_genome_mfs,
+            mut_flip_bit_mfs=self.mut_flip_bit_mfs,
+            threshold=self.threshold,
+            metrics_weights=metrics_weights,
+            features_weights=self.features_weights,
+        )
 
         if hasattr(params_obj, "fitness_params"):
             params_obj.fitness_params.fix_output_thresholds(self.n_outputs_)
+        self._fuzzy_params_ = params_obj
 
         dfin, dfout = self._prepare_dataframes(X_arr, y_2d, y_headers=y_headers)
         rng = RandomGenerator(self._resolve_seed())
@@ -472,15 +601,15 @@ class _FuzzyCocoBase(BaseEstimator):
         state = self.__dict__.copy()
         state.pop("model_", None)
         state.pop("_fuzzy_system_", None)
-        params = state.get("params")
+        params = state.get("_fuzzy_params_")
         if isinstance(params, FuzzyCocoParams):
-            state["params"] = copy.deepcopy(params.describe())
+            state["_fuzzy_params_"] = copy.deepcopy(params.describe())
         return state
 
     def __setstate__(self, state):
-        params = state.get("params")
+        params = state.get("_fuzzy_params_")
         if isinstance(params, dict):
-            state["params"] = FuzzyCocoParams.from_dict(params)
+            state["_fuzzy_params_"] = FuzzyCocoParams.from_dict(params)
         self.__dict__.update(state)
         self.model_ = None
         self._fuzzy_system_ = None
@@ -535,6 +664,7 @@ class _FuzzyCocoBase(BaseEstimator):
 # ────────────────────────────────────────────────────────────────────────────────
 class FuzzyCocoClassifier(ClassifierMixin, FuzzyCocoPlotMixin, _FuzzyCocoBase):
     _default_scorer = "accuracy"
+    _default_metrics_weights = {"accuracy": 1.0}
 
     def fit(self, X, y, **kwargs):
         """Fit the classifier on ``X`` and ``y``.
@@ -581,6 +711,7 @@ class FuzzyCocoClassifier(ClassifierMixin, FuzzyCocoPlotMixin, _FuzzyCocoBase):
 # ────────────────────────────────────────────────────────────────────────────────
 class FuzzyCocoRegressor(RegressorMixin, FuzzyCocoPlotMixin, _FuzzyCocoBase):
     _default_scorer = "r2"
+    _default_metrics_weights = {"rmse": 1.0}
 
     def predict(self, X):
         """Predict continuous targets for ``X``.
