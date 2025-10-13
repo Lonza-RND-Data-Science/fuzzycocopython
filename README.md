@@ -2,7 +2,7 @@
 
 [![Tests](https://github.com/Lonza-RND-Data-Science/fuzzycocopython/actions/workflows/tests.yml/badge.svg)](https://github.com/Lonza-RND-Data-Science/fuzzycocopython/actions/workflows/tests.yml)
 [![Build](https://github.com/Lonza-RND-Data-Science/fuzzycocopython/actions/workflows/build.yml/badge.svg)](https://github.com/Lonza-RND-Data-Science/fuzzycocopython/actions/workflows/build.yml)
-[![Coverage](https://img.shields.io/badge/coverage-pytest--cov-blue)](https://github.com/Lonza-RND-Data-Science/fuzzycocopython/actions/workflows/tests.yml)
+[![Coverage](https://raw.githubusercontent.com/Lonza-RND-Data-Science/fuzzycocopython/main/badges/coverage.svg)](https://github.com/Lonza-RND-Data-Science/fuzzycocopython/actions/workflows/tests.yml)
 [![PyPI](https://img.shields.io/badge/PyPI-pending-lightgrey)](https://pypi.org/project/fuzzycocopython/)
 [![License: AGPL-3.0-or-later](https://img.shields.io/badge/license-AGPL--3.0--or--later-success)](https://www.gnu.org/licenses/agpl-3.0.html)
 [![Python Versions](https://img.shields.io/badge/python-3.10%20%E2%80%93%203.14-blue)](#installation)
@@ -76,6 +76,18 @@ score = clf.score(data.data, data.target)
 print(f"Accuracy: {score:.3f}")
 print(clf.rules_df_.head())
 ```
+
+The estimators now expose scikit-learn style hyper-parameters for direct tuning:
+
+```python
+from fuzzycocopython import FuzzyCocoClassifier
+
+model = FuzzyCocoClassifier(nb_rules=10, nb_sets_in=3, random_state=42)
+model.fit(X, y)
+preds = model.predict(X)
+```
+
+Bit widths for variable and set indices are automatically derived from the training data. Override them with `nb_bits_vars_in`, `nb_bits_sets_in`, `nb_bits_vars_out`, or `nb_bits_sets_out` when you need full manual control.
 
 For a guided tour, open `demo.ipynb`. Additional usage examples live in `tests/test_fuzzycocopython.py`.
 

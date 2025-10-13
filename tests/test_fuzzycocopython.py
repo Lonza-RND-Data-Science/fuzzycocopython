@@ -110,6 +110,14 @@ def _generate_dataset(seed: int = 0):
     return X, y_class, y_reg
 
 
+def _generate_multi_output(seed: int = 0, outputs: int = 2):
+    rng = np.random.default_rng(seed)
+    X = rng.random((30, 4))
+    y_class = rng.integers(0, 3, size=(30, outputs))
+    y_reg = rng.random((30, outputs))
+    return X, y_class, y_reg
+
+
 def test_classifier_save_and_load(tmp_path):
     X, y_class, _ = _generate_dataset()
     model = FuzzyCocoClassifier(random_state=42)
@@ -135,6 +143,35 @@ def test_module_level_save_load(tmp_path):
     original = reg.predict(X)
     loaded_pred = loaded.predict(X)
     np.testing.assert_allclose(original, loaded_pred)
+
+
+def test_classifier_multi_output():
+    X, y_multi, _ = _generate_multi_output(seed=23, outputs=2)
+    clf = FuzzyCocoClassifier(random_state=5)
+    clf.fit(X, y_multi)
+    preds = clf.predict(X)
+    assert preds.shape == y_multi.shape
+    assert clf.n_outputs_ == y_multi.shape[1]
+    thresholds = clf._fuzzy_params_.fitness_params.output_vars_defuzz_thresholds
+    assert len(thresholds) == y_multi.shape[1]
+    assert isinstance(clf.classes_, list)
+    assert len(clf.classes_) == y_multi.shape[1]
+    for idx, column_classes in enumerate(clf.classes_):
+        np.testing.assert_array_equal(
+            np.sort(np.unique(y_multi[:, idx])),
+            np.sort(column_classes),
+        )
+
+
+def test_regressor_multi_output():
+    X, _, y_multi = _generate_multi_output(seed=29, outputs=3)
+    reg = FuzzyCocoRegressor(random_state=11)
+    reg.fit(X, y_multi)
+    preds = reg.predict(X)
+    assert preds.shape == y_multi.shape
+    assert reg.n_outputs_ == y_multi.shape[1]
+    thresholds = reg._fuzzy_params_.fitness_params.output_vars_defuzz_thresholds
+    assert len(thresholds) == y_multi.shape[1]
 
 
 def test_rules_activations_and_stats():

@@ -1,166 +1,148 @@
 Parameters Guide
 ================
 
-This page describes the full set of parameters used by the FuzzyCoco engine and
-how to configure them from Python. The Python wrappers pass a
-``FuzzyCocoParams`` object to the C++ core. You can:
+FuzzyCoco estimators now expose an explicit, scikit-learn compatible set of
+constructor keyword arguments. The wrappers translate those keyword arguments
+into a ``FuzzyCocoParams`` instance that is passed to the C++ optimisation
+engine. This page documents the structure of that parameter object and the
+defaults used by the Python interface.
 
-- let the wrapper build sane defaults automatically (and override via
-  scikit-learn style constructor kwargs like ``nb_rules=10``), or
-- use the convenience helper ``make_fuzzy_params`` with a nested dict to tune a subset.
-
-High‑level structure
+High-level structure
 --------------------
 
-``FuzzyCocoParams`` is a container composed of sub-structures:
+``FuzzyCocoParams`` is composed of the following sub-sections:
 
-- ``global_params``: global search and rule topology limits.
-- ``input_vars_params`` and ``output_vars_params``: encoding of variables and sets.
-- ``rules_params`` and ``mfs_params``: evolutionary algorithm knobs for the rule genome
-  and the membership function positions.
-- ``fitness_params``: scoring and feature weighting.
+- ``global_params``: topology and cross-population settings.
+- ``input_vars_params`` and ``output_vars_params``: encoding of variables and fuzzy sets.
+- ``rules_params`` and ``mfs_params``: evolutionary algorithm knobs for rules and
+  membership functions respectively.
+- ``fitness_params``: scoring configuration and optional feature weights.
 
 GlobalParams
 ------------
 
-Fields (defaults in parentheses):
+Constructor keywords mapping to this section:
 
-- ``nb_rules`` (required in C++; default 5 in Python helper): number of rules
-  to infer. Note: "DontCare" may effectively reduce the final rule count.
-- ``nb_max_var_per_rule`` (auto): number of input variable slots in rule antecedents.
-  The wrapper sets this to the number of features in ``X`` if not provided.
-- ``max_generations`` (100): maximum coevolution generations.
-- ``max_fitness`` (1.0): early-stop fitness threshold; values > 1 disable early stopping.
-- ``nb_cooperators`` (2): number of cooperators during fitness evaluation.
-- ``influence_rules_initial_population`` (False): bias initial population using feature weights.
-- ``influence_evolving_ratio`` (0.8): evolving ratio when the above is enabled.
+- ``nb_rules`` (default ``5``): number of candidate rules evolved each generation.
+- ``nb_max_var_per_rule`` (default ``3``): maximum antecedents per rule.
+- ``max_generations`` (default ``100``): total number of evolution iterations.
+- ``max_fitness`` (default ``1.0``): early-stopping fitness target (values > 1.0 disable it).
+- ``nb_cooperators`` (default ``2``): number of cooperating agents when estimating fitness.
+- ``influence_rules_initial_population`` (default ``False``): seed the initial population
+  using influence heuristics.
+- ``influence_evolving_ratio`` (default ``0.8``): ratio controlling the strength of the
+  above influence during evolution.
 
 VarsParams (input/output)
 -------------------------
 
-Controls the encoding of variables and their fuzzy sets. One instance is used for
-inputs and one for outputs.
+Both input and output variables share the same structure. Corresponding constructor
+arguments are suffixed with ``_in`` or ``_out``.
 
-- ``nb_sets`` (2 by default in Python helper): number of fuzzy sets per variable.
-- ``nb_bits_vars`` (auto): bits to encode the variable index. For inputs, an extra
-  bit is used to encode "DontCare". Internally computed as
-  ``ceil(log2(nb_vars)) + 1`` when missing.
-- ``nb_bits_sets`` (auto): bits to encode the set index. Computed as ``ceil(log2(nb_sets))``.
-- ``nb_bits_pos`` (8): bits to encode discretized positions of membership functions.
+- ``nb_sets_in`` / ``nb_sets_out`` (default ``2``): number of fuzzy sets per variable.
+- ``nb_bits_vars_in`` / ``nb_bits_vars_out`` (default ``auto``): bit width used to encode
+  variable indices. When left to auto, the wrapper computes
+  ``ceil(log2(nb_vars)) + 1`` where ``nb_vars`` is the number of input/output variables
+  observed during ``fit``.
+- ``nb_bits_sets_in`` / ``nb_bits_sets_out`` (default ``auto``): bit width used to encode
+  set indices. The automatic rule is ``ceil(log2(nb_sets))``.
+- ``nb_bits_pos_in`` / ``nb_bits_pos_out`` (default ``8``): discretisation used to encode
+  membership-function positions.
 
 EvolutionParams (rules_params / mfs_params)
 -------------------------------------------
 
-Evolutionary algorithm parameters for both the rules population and the membership
-function positions population. Same fields for both:
+Both the rule population and the membership-function population expose the same set
+of hyper-parameters:
 
-- ``pop_size`` (50): population size.
-- ``elite_size`` (5): number of elites preserved between generations.
-- ``cx_prob`` (0.5): crossover probability.
-- ``mut_flip_genome`` (0.5): probability a genome is chosen for mutation.
-- ``mut_flip_bit`` (0.025): probability a bit of the genome is flipped.
+- ``pop_size_rules`` / ``pop_size_mfs`` (default ``200``): population size.
+- ``elite_size_rules`` / ``elite_size_mfs`` (default ``5``): elite survivors per generation.
+- ``cx_prob_rules`` / ``cx_prob_mfs`` (defaults ``0.6`` and ``0.9`` respectively): crossover probability.
+- ``mut_flip_genome_rules`` / ``mut_flip_genome_mfs`` (defaults ``0.4`` and ``0.2``): probability that a genome is selected for mutation.
+- ``mut_flip_bit_rules`` / ``mut_flip_bit_mfs`` (both default ``0.01``): probability that a
+  bit within a selected genome is flipped.
 
 FitnessParams
 -------------
 
-Scoring configuration and feature-specific weights.
+- ``threshold`` (default ``0.5``): singleton defuzzification threshold. During ``fit`` the
+  value is expanded to match the number of outputs.
+- ``metrics_weights``: mapping of fitness metrics to weights. When omitted the classifier
+  defaults to ``{"accuracy": 1.0}`` and the regressor defaults to ``{"rmse": 1.0}``.
+  All other known metrics are explicitly set to ``0.0`` so the engine does not fall back
+  to its internal sensitivity/specificity defaults. Unknown metric names raise
+  ``ValueError``.
+- ``features_weights`` (default ``None``): optional per-feature weights used by the fitness
+  function.
 
-- ``output_vars_defuzz_thresholds``: list of thresholds used for defuzzification.
-  The wrapper sets a single value (default 0.5). During ``fit``, this is expanded
-  to match the number of outputs via ``fix_output_thresholds``.
-- ``metrics_weights``: weights applied to system metrics when optimizing. Available
-  fields include: ``sensitivity``, ``specificity``, ``accuracy``, ``ppv``, ``rmse``,
-  ``rrse``, ``rae``, ``mse``, and more (see ``fuzzy_system_metrics.h``). The Python
-  helper defaults are ``sensitivity=1.0`` and ``specificity=0.8``; others default to 0.
-- ``features_weights``: optional mapping ``{feature_name: weight}`` with weights in [0, 1].
-  Unknown names raise at runtime.
-
-Automatic defaults applied by the wrapper
+Automatic defaults applied during ``fit``
 ----------------------------------------
 
-When you do not pass a ``params`` object:
+- Bit widths fall back to the automatic rules described above when their constructor
+  arguments are left as ``None``.
+- The threshold list is replicated to match the observed number of outputs.
+- Feature names and number of outputs are inferred from the data passed to ``fit``.
 
-- ``nb_max_var_per_rule`` defaults to ``3``.
-- Bit widths follow the C++ logic: ``nb_bits_vars = ceil(log2(nb_vars)) + 1``
-  and ``nb_bits_sets = ceil(log2(nb_sets))``.
-- ``output_vars_defuzz_thresholds`` are adapted to the number of outputs.
+Configuring estimators from Python
+----------------------------------
 
-How to configure from Python
-----------------------------
-
-1) Minimal: rely on defaults
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Minimal configuration
+~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: python
 
    from fuzzycocopython import FuzzyCocoClassifier
+
    clf = FuzzyCocoClassifier(random_state=0)
    clf.fit(X, y)
 
-2) Moderate: override some top-level kwargs
-
-You can also pass flat constructor kwargs in sklearn style:
+Override selected hyper-parameters
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: python
 
-   # direct globals
-   clf = FuzzyCocoClassifier(nb_rules=8, nb_max_var_per_rule=3)
-
-   # or nested via double underscore
    clf = FuzzyCocoClassifier(
-       global_params__nb_rules=8,
-       input_vars_params__nb_sets=3,
-       rules_params__pop_size=100,
+       nb_rules=12,
+       nb_sets_in=3,
+       pop_size_rules=150,
+       random_state=42,
    )
+   clf.fit(X, y)
 
-3) Tuning with ``make_fuzzy_params``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Advanced: build ``FuzzyCocoParams`` directly
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-``make_fuzzy_params`` accepts a nested dict (recommended) and some convenient
-flat keywords for common options.
+For specialised pipelines you may still construct the parameter object yourself using
+the ``fuzzycocopython.utils.build_fuzzycoco_params`` helper. This mirrors the logic used
+inside ``fit`` and accepts the same keyword arguments plus dataset dimensions:
 
 .. code-block:: python
 
-   from fuzzycocopython.utils import make_fuzzy_params
+   from fuzzycocopython.utils import build_fuzzycoco_params
 
-   params = make_fuzzy_params({
-       "global_params": {
-           "nb_rules": 10,
-           "nb_max_var_per_rule": 4,
-           "max_generations": 150,
-       },
-       "input_vars_params": {
-           "nb_sets": 3,
-           "nb_bits_pos": 6,
-       },
-       "output_vars_params": {
-           "nb_sets": 3,
-       },
-       "rules_params": {  # evolutionary hyperparameters for rules
-           "pop_size": 100,
-           "elite_size": 10,
-       },
-       "mfs_params": {    # evolutionary hyperparameters for MF positions
-           "pop_size": 80,
-       },
-       "fitness_params": {
-           "threshold": 0.5,  # single value replicated if multi-output
-           "metrics_weights": {"sensitivity": 1.0, "specificity": 1.0, "accuracy": 1.0},
-           "features_weights": {"A": 1.0, "B": 0.2},
-       },
-   })
+   params = build_fuzzycoco_params(
+       nb_features=X.shape[1],
+       n_outputs=1,
+       nb_rules=10,
+       nb_sets_in=3,
+       nb_sets_out=2,
+       threshold=0.4,
+       metrics_weights={"accuracy": 1.0, "sensitivity": 0.5},
+       features_weights={"A": 1.0},
+       pop_size_rules=100,
+       pop_size_mfs=80,
+   )
+   print(params.describe())
 
-   clf = FuzzyCocoClassifier(params=params, random_state=0)
-   clf.fit(X, y)
+   # The helper is primarily intended for direct interaction with the low-level bindings.
 
 Notes and tips
 --------------
 
-- Bit defaults are aligned with the engine: ``nb_bits_sets = ceil(log2(nb_sets))``
-  and ``nb_bits_vars = ceil(log2(nb_vars)) + 1``.
-- ``nb_bits_pos`` controls discretization of MF positions. Smaller values constrain
-  the search and can speed up runs at the cost of granularity.
-- ``metrics_weights`` act as a linear scalarization over the internal metrics; set
-  only the metrics you want to optimize explicitly.
-- Use ``features_weights`` to encourage or discourage specific input variables in
-  the genome encoding and selection. Unknown feature names raise an error.
+- Lower ``nb_bits_pos`` values restrict the search space for membership-function
+  positions and may speed up optimisation at the cost of precision.
+- ``metrics_weights`` act as a linear scalarisation of the internal engine metrics.
+  Only specify the ones you care about; unspecified metrics default to zero weight.
+- ``features_weights`` expects feature names as seen by pandas DataFrames or the
+  ``feature_names`` argument passed to ``fit``. Unknown names raise an error inside
+  the engine.
