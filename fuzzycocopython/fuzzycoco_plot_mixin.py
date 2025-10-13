@@ -144,7 +144,7 @@ class FuzzyCocoPlotMixin:
                     str(name) if name is not None else str(r) if not isinstance(r, int | float | str) else f"Rule {i}"
                 )
         else:
-            labels = [f"Rule {i +  1}" for i in range(a.size)]
+            labels = [f"Rule {i + 1}" for i in range(a.size)]
 
         df = pd.DataFrame({"rule": labels, "activation": a})
         if sort:

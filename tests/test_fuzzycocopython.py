@@ -109,12 +109,14 @@ def _generate_dataset(seed: int = 0):
     y_reg = rng.random(30)
     return X, y_class, y_reg
 
+
 def _generate_multi_output(seed: int = 0, outputs: int = 2):
     rng = np.random.default_rng(seed)
     X = rng.random((30, 4))
     y_class = rng.integers(0, 3, size=(30, outputs))
     y_reg = rng.random((30, outputs))
     return X, y_class, y_reg
+
 
 def test_classifier_save_and_load(tmp_path):
     X, y_class, _ = _generate_dataset()
@@ -159,6 +161,8 @@ def test_classifier_multi_output():
             np.sort(np.unique(y_multi[:, idx])),
             np.sort(column_classes),
         )
+
+
 def test_regressor_multi_output():
     X, _, y_multi = _generate_multi_output(seed=29, outputs=3)
     reg = FuzzyCocoRegressor(random_state=11)
@@ -168,8 +172,8 @@ def test_regressor_multi_output():
     assert reg.n_outputs_ == y_multi.shape[1]
     thresholds = reg._fuzzy_params_.fitness_params.output_vars_defuzz_thresholds
     assert len(thresholds) == y_multi.shape[1]
-    
-    
+
+
 def test_rules_activations_and_stats():
     X, y_class, _ = _generate_dataset(seed=5)
     model = FuzzyCocoClassifier(random_state=1)
