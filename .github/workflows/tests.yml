@@ -67,6 +67,13 @@ jobs:
       - name: Run pytest
         run: uv run pytest
 
+      - name: Generate coverage badge
+        if: matrix.python-version == '3.11'
+        uses: tj-actions/coverage-badge-py@v2
+        with:
+          input: coverage.xml
+          output: badges/coverage.svg
+
       - name: Upload coverage
         if: matrix.python-version == '3.11'
         uses: actions/upload-artifact@v4
@@ -74,3 +81,10 @@ jobs:
           name: coverage-${{ github.sha }}
           path: coverage.xml
           retention-days: 7
+
+      - name: Commit coverage badge
+        if: matrix.python-version == '3.11' && github.ref == 'refs/heads/main' && github.event_name == 'push'
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "chore: update coverage badge [skip ci]"
+          file_pattern: badges/coverage.svg

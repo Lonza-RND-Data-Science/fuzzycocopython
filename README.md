@@ -2,7 +2,7 @@
 
 [![Tests](https://github.com/Lonza-RND-Data-Science/fuzzycocopython/actions/workflows/tests.yml/badge.svg)](https://github.com/Lonza-RND-Data-Science/fuzzycocopython/actions/workflows/tests.yml)
 [![Build](https://github.com/Lonza-RND-Data-Science/fuzzycocopython/actions/workflows/build.yml/badge.svg)](https://github.com/Lonza-RND-Data-Science/fuzzycocopython/actions/workflows/build.yml)
-[![Coverage](https://img.shields.io/badge/coverage-pytest--cov-blue)](https://github.com/Lonza-RND-Data-Science/fuzzycocopython/actions/workflows/tests.yml)
+[![Coverage](https://raw.githubusercontent.com/Lonza-RND-Data-Science/fuzzycocopython/main/badges/coverage.svg)](https://github.com/Lonza-RND-Data-Science/fuzzycocopython/actions/workflows/tests.yml)
 [![PyPI](https://img.shields.io/badge/PyPI-pending-lightgrey)](https://pypi.org/project/fuzzycocopython/)
 [![License: AGPL-3.0-or-later](https://img.shields.io/badge/license-AGPL--3.0--or--later-success)](https://www.gnu.org/licenses/agpl-3.0.html)
 [![Python Versions](https://img.shields.io/badge/python-3.10%20%E2%80%93%203.14-blue)](#installation)
