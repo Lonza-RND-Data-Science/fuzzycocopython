@@ -189,7 +189,6 @@ class FuzzyCocoPlotMixin:
         fig.tight_layout()
         plt.show()
 
-    # TODO fix this method to use input_sample actually, it should show the fuzzificaiton of the input sample the only thing to do is uncomment result = fis.predict(input_dict) and build input_dict to actually works but it should work
     def plot_aggregated_output(self, input_sample, figsize=(12, 10)):
         """Visualize the aggregated fuzzy output for an input sample.
 
@@ -201,7 +200,33 @@ class FuzzyCocoPlotMixin:
         """
 
         # Build a mapping for the input values.
-        # input_dict = {name: value for name, value in zip(self.feature_names_in_, input_sample, strict=False)}
+        if hasattr(input_sample, "to_dict"):
+            sample_dict = dict(input_sample.to_dict())
+        elif isinstance(input_sample, dict):
+            sample_dict = dict(input_sample)
+        else:
+            try:
+                sample_dict = {
+                    name: float(value) for name, value in zip(self.feature_names_in_, input_sample, strict=False)
+                }
+            except Exception as exc:
+                raise ValueError(
+                    "Could not interpret `input_sample` use a dict/Series or an array aligned with `feature_names_in_`."
+                ) from exc
+
+        output_names = set(getattr(self, "target_names_in_", []) or [])
+        if not output_names:
+            target = getattr(self, "target_name_in_", None)
+            if target:
+                output_names = {target}
+
+        input_names = [lv.name for lv in self.variables_ if lv.name not in output_names]
+        missing = [name for name in input_names if name not in sample_dict]
+        if missing:
+            missing_str = ", ".join(missing)
+            raise ValueError(f"Missing values for input variables: {missing_str}")
+
+        input_dict = {name: float(sample_dict[name]) for name in input_names}
 
         # Retrieve the output linguistic variable
         output_lv = next(
@@ -221,7 +246,7 @@ class FuzzyCocoPlotMixin:
             default_rule=(self.default_rules_[0] if self.default_rules_ else None),
         )
 
-        # result = fis.predict(input_dict)
+        fis.predict(input_dict)
         # result_cpp = self._predict(input_sample)
 
         # if not np.isclose(float(result.get(self.target_name_in_)), float(result_cpp[0])):
