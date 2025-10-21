@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 import os
+from collections.abc import Mapping, Sequence
 
 import joblib
 import numpy as np
@@ -198,6 +199,160 @@ class _FuzzyCocoBase(BaseEstimator):
         rng = check_random_state(self.random_state)
         return int(rng.randint(0, 2**32 - 1, dtype=np.uint32))
 
+    def _extract_output_names(self):
+        """Return output variable names from the stored description."""
+        fuzzy_desc = getattr(self, "description_", None)
+        if not fuzzy_desc:
+            return []
+        variables = fuzzy_desc.get("fuzzy_system", {}).get("variables", {})
+        outputs = variables.get("output", {})
+        return list(outputs.keys())
+
+    @staticmethod
+    def _rename_membership_label(label, old_var, new_var):
+        """Rename membership labels carrying the old variable prefix."""
+        if not isinstance(label, str):
+            return label
+        if label == old_var:
+            return new_var
+        for sep in (".", "_", "-", " "):
+            prefix = f"{old_var}{sep}"
+            if label.startswith(prefix):
+                return f"{new_var}{sep}{label[len(prefix):]}"
+        return label
+
+    def _rebuild_from_description(self):
+        """Refresh cached Python helpers and fuzzy system from description."""
+        parsed = parse_fuzzy_system_from_description(self.description_)
+        self.variables_, self.rules_, self.default_rules_ = to_linguistic_components(*parsed)
+        self.variables_view_, self.rules_view_, self.default_rules_view_ = to_views_components(*parsed)
+        self.variables_df_, self.rules_df_ = to_tables_components(*parsed)
+
+        output_names = self._extract_output_names()
+        self.target_names_in_ = output_names
+        if output_names:
+            self.target_name_in_ = output_names[0]
+        self.n_outputs_ = len(output_names)
+
+        fuzzy_desc = self.description_.get("fuzzy_system") if self.description_ else None
+        self._fuzzy_system_dict_ = copy.deepcopy(fuzzy_desc) if fuzzy_desc is not None else None
+        self._fuzzy_system_string_ = None
+        self._fuzzy_system_ = None
+        try:
+            self._ensure_fuzzy_system()
+        except ModuleNotFoundError:  # pragma: no cover - happens in partial installs
+            pass
+        except AttributeError:  # pragma: no cover - defensive for missing bindings
+            pass
+
+        # Drop the live engine; predictions fall back to the serialized description.
+        self.model_ = None
+
+    def _normalize_target_name_change(self, names):
+        """Normalize provided names into a mapping old->new."""
+        current = list(getattr(self, "target_names_in_", []) or self._extract_output_names())
+        if not current:
+            raise RuntimeError("Estimator does not expose any output variables to rename.")
+
+        if isinstance(names, str):
+            if len(current) != 1:
+                raise ValueError("Provide a mapping or list when renaming multi-output models.")
+            mapping = {current[0]: str(names)}
+        elif isinstance(names, Mapping):
+            mapping = {str(k): str(v) for k, v in names.items()}
+            unknown = sorted(set(mapping) - set(current))
+            if unknown:
+                raise ValueError(f"Unknown output variables: {', '.join(unknown)}")
+        elif isinstance(names, Sequence):
+            new_names = [str(n) for n in names]
+            if len(new_names) != len(current):
+                raise ValueError(
+                    f"Expected {len(current)} output names, got {len(new_names)}.",
+                )
+            mapping = {old: new for old, new in zip(current, new_names, strict=False)}
+        else:
+            raise TypeError("`names` must be a string, sequence, or mapping.")
+
+        normalized = {old: new for old, new in mapping.items() if new and new != old}
+        updated = [normalized.get(name, name) for name in current]
+        if len(updated) != len(set(updated)):
+            raise ValueError("Output names must be unique.")
+        return normalized
+
+    def set_target_names(self, names):
+        """Rename the output variables and refresh cached structures.
+
+        Args:
+            names: String (single-output), sequence of strings matching the number
+                of outputs, or a mapping ``{old_name: new_name}``.
+
+        Returns:
+            self
+        """
+        check_is_fitted(self, attributes=["description_", "is_fitted_"])
+        mapping = self._normalize_target_name_change(names)
+        if not mapping:
+            return self
+
+        fs = self.description_.get("fuzzy_system")
+        if fs is None:
+            raise RuntimeError("Estimator is missing the fuzzy system description.")
+
+        variables = fs.get("variables", {})
+        outputs = variables.get("output", {})
+        if not outputs:
+            raise RuntimeError("Estimator description lacks fuzzy output variables.")
+
+        new_outputs = {}
+        for var_name, sets in outputs.items():
+            target_name = mapping.get(var_name, var_name)
+            renamed_sets = {}
+            for set_name, value in sets.items():
+                renamed_sets[self._rename_membership_label(set_name, var_name, target_name)] = value
+            new_outputs[target_name] = renamed_sets
+        variables["output"] = new_outputs
+
+        rules = fs.get("rules", {})
+        new_rules = {}
+        for rule_name, rule_def in rules.items():
+            updated_rule = {}
+            for key, part in rule_def.items():
+                if key not in ("antecedents", "consequents") or not isinstance(part, dict):
+                    updated_rule[key] = part
+                    continue
+                changed_part = {}
+                for var, mf_dict in part.items():
+                    renamed_var = mapping.get(var, var)
+                    if isinstance(mf_dict, dict):
+                        renamed_mf = {
+                            self._rename_membership_label(label, var, renamed_var): weight
+                            for label, weight in mf_dict.items()
+                        }
+                    else:
+                        renamed_mf = mf_dict
+                    changed_part[renamed_var] = renamed_mf
+                updated_rule[key] = changed_part
+            new_rules[rule_name] = updated_rule
+        fs["rules"] = new_rules
+
+        defaults = fs.get("default_rules", {})
+        new_defaults = {}
+        for var, label in defaults.items():
+            renamed_var = mapping.get(var, var)
+            new_defaults[renamed_var] = self._rename_membership_label(label, var, renamed_var)
+        fs["default_rules"] = new_defaults
+
+        thresholds = self.description_.get("defuzz_thresholds")
+        if isinstance(thresholds, dict):
+            new_thresholds = {}
+            for var, value in thresholds.items():
+                renamed_var = mapping.get(var, var)
+                new_thresholds[renamed_var] = value
+            self.description_["defuzz_thresholds"] = new_thresholds
+
+        self._rebuild_from_description()
+        return self
+
     def _make_dataframe(self, arr, header):
         """Build the C++ DataFrame from a 2D numpy array and header labels."""
         rows = [list(header)] + arr.astype(str).tolist()
@@ -381,6 +536,7 @@ class _FuzzyCocoBase(BaseEstimator):
         y_2d = y_arr.reshape(-1, 1) if y_arr.ndim == 1 else y_arr
         y_headers, resolved_target = self._resolve_target_headers(y, y_2d, target_name)
         self.target_name_in_ = resolved_target
+        self.target_names_in_ = list(y_headers)
         self.n_outputs_ = y_2d.shape[1]
 
         metrics_weights = self.metrics_weights
@@ -612,6 +768,15 @@ class _FuzzyCocoBase(BaseEstimator):
         if isinstance(params, dict):
             state["_fuzzy_params_"] = FuzzyCocoParams.from_dict(params)
         self.__dict__.update(state)
+
+        output_names = []
+        if getattr(self, "description_", None):
+            output_names = self._extract_output_names()
+        if not getattr(self, "target_names_in_", None):
+            self.target_names_in_ = output_names
+        if output_names and not getattr(self, "target_name_in_", None):
+            self.target_name_in_ = output_names[0]
+
         self.model_ = None
         self._fuzzy_system_ = None
         if getattr(self, "_fuzzy_system_dict_", None) is None and getattr(self, "description_", None):

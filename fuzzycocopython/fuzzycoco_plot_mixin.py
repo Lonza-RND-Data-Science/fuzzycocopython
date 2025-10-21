@@ -83,9 +83,17 @@ class FuzzyCocoPlotMixin:
         var_list = self._to_var_list(variable)
 
         # Build iterable of linguistic variables to plot (input vars only)
+        target_names = getattr(self, "target_names_in_", None)
+        if target_names:
+            output_name_set = set(target_names)
+        else:
+            primary = getattr(self, "target_name_in_", None)
+            output_name_set = {primary} if primary else set()
+
         def is_output(lv):
-            # Heuristic: skip classic output names; adapt if you store IO flags
-            return lv.name.upper() in {"OUT", "TARGET"}  # adjust if needed
+            if output_name_set:
+                return lv.name in output_name_set
+            return lv.name.upper() in {"OUT", "TARGET"}
 
         if var_list is None:
             lvs = [lv for lv in self.variables_ if not is_output(lv) and lv.name in sample_dict]
@@ -181,6 +189,7 @@ class FuzzyCocoPlotMixin:
         fig.tight_layout()
         plt.show()
 
+    # TODO fix this method to use input_sample actually, it should show the fuzzificaiton of the input sample the only thing to do is uncomment result = fis.predict(input_dict) and build input_dict to actually works but it should work
     def plot_aggregated_output(self, input_sample, figsize=(12, 10)):
         """Visualize the aggregated fuzzy output for an input sample.
 
@@ -201,7 +210,10 @@ class FuzzyCocoPlotMixin:
         )
 
         if output_lv is None:
-            raise ValueError("Output linguistic variable 'OUT' not found in self.variables_.")
+            available = ", ".join(sorted(lv.name for lv in self.variables_))
+            raise ValueError(
+                f"Output linguistic variable '{self.target_name_in_}' not found; available variables: {available}"
+            )
 
         # Create a SingletonFIS instance using the learned rules and default rule.
         fis = SingletonFIS(
