@@ -374,3 +374,12 @@ def test_set_target_names_duplicate_raises():
 
     with pytest.raises(ValueError, match="unique"):
         model.set_target_names({"target": "other"})
+
+
+def test_set_target_names_whitespace_raises():
+    model = FuzzyCocoRegressor()
+    description = _sample_description_single_output()
+    _prime_model_with_description(model, description)
+
+    with pytest.raises(ValueError, match="must not contain"):
+        model.set_target_names("Bad Name")

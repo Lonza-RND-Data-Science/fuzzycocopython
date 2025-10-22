@@ -291,6 +291,11 @@ class _FuzzyCocoBase(BaseEstimator):
         """
         check_is_fitted(self, attributes=["description_", "is_fitted_"])
         mapping = self._normalize_target_name_change(names)
+        invalid = [target for target in mapping.values() if any(char.isspace() for char in target)]
+        if invalid:
+            raise ValueError(
+                "Output variable names must not contain spaces: " + ", ".join(invalid),
+            )
         if not mapping:
             return self
 
