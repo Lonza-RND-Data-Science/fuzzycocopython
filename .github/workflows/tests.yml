@@ -69,6 +69,19 @@ jobs:
       - name: Run pytest
         run: uv run pytest
 
+      - name: Coverage report
+        if: matrix.python-version == '3.11'
+        run: |
+          set -euo pipefail
+          uv run coverage report --fail-under=75 | tee coverage-report.txt
+          {
+            echo "### Coverage summary (Python ${{ matrix.python-version }})"
+            echo
+            echo '```'
+            cat coverage-report.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Generate coverage badge
         if: matrix.python-version == '3.11'
         uses: tj-actions/coverage-badge-py@v2
