@@ -50,6 +50,12 @@ source .venv/bin/activate
 pip install -e .
 ```
 
+When you only need the published bindings and not the repository, install straight from GitHub:
+
+```bash
+pip install git+https://github.com/Lonza-RND-Data-Science/fuzzycocopython.git
+```
+
 For development tasks (tests, linting, docs) install the optional toolchain:
 
 ```bash
