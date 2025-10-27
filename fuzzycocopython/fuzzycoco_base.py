@@ -494,12 +494,12 @@ class _FuzzyCocoBase(BaseEstimator):
         """Compute rule activations for a single sample (1D)."""
         model = getattr(self, "model_", None)
         if model is not None:
+            print(f"Model is {model}")
             values = model.rules_fire_from_values(sample)
         else:
-            from . import _fuzzycoco_core
-
-            mapping = {name: float(value) for name, value in zip(self.feature_names_in_, sample, strict=False)}
-            values = _fuzzycoco_core._rules_fire_from_description(self.description_, mapping)
+            fuzzy_system = self._ensure_fuzzy_system()
+            print(f"Fuzzy system is {fuzzy_system}")
+            values = fuzzy_system.compute_rules_fire_levels(sample)
         return np.asarray(values, dtype=float)
 
     # ──────────────────────────────────────────────────────────────────────
@@ -892,5 +892,7 @@ class FuzzyCocoRegressor(RegressorMixin, FuzzyCocoPlotMixin, _FuzzyCocoBase):
         check_is_fitted(self, attributes=["model_"])
         dfin, _ = self._prepare_inference_input(X)
         preds_df = self._predict_dataframe(dfin)
+        print("after return preds_df")
         raw = np.asarray(preds_df.to_list(), dtype=float)
+        print("after to list")
         return raw.ravel() if raw.shape[1] == 1 else raw
