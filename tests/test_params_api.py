@@ -102,6 +102,21 @@ def test_metrics_weights_zero_fill():
         assert weights[key] == 0.0
 
 
+def test_metrics_weights_accepts_integer_values():
+    X, y = _toy_regression(seed=12)
+    reg = FuzzyCocoRegressor(
+        nb_rules=4,
+        metrics_weights={"rmse": 2},
+        random_state=3,
+    )
+    reg.fit(X, y)
+
+    params_desc = reg._fuzzy_params_.describe()
+    weights = params_desc["fitness_params"]["metrics_weights"]
+    assert weights["rmse"] == pytest.approx(2.0)
+    assert weights["accuracy"] == 0.0
+
+
 def test_invalid_metrics_key_raises():
     X, y = _toy_regression(seed=9)
     reg = FuzzyCocoRegressor(metrics_weights={"accuracy": 0.6, "unknown_metric": 0.4})

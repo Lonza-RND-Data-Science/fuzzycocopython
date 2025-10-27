@@ -204,7 +204,12 @@ def build_fuzzycoco_params(
             )
         normalized = {key: 0.0 for key in _METRICS_KEYS}
         for key, value in metrics_weights.items():
-            normalized[key] = value
+            try:
+                normalized[key] = float(value)
+            except (TypeError, ValueError) as exc:
+                raise TypeError(
+                    f"metrics_weights[{key!r}] must be a real number, got {value!r}",
+                ) from exc
         fitness_params["metrics_weights"] = normalized
     if features_weights:
         fitness_params["features_weights"] = dict(features_weights)
