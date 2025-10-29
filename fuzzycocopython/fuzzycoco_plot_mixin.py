@@ -1,3 +1,4 @@
+import copy
 from collections.abc import Sequence
 
 import matplotlib.pyplot as plt
@@ -5,6 +6,8 @@ import numpy as np
 from lfa_toolbox.core.fis.singleton_fis import SingletonFIS
 from lfa_toolbox.view.fis_viewer import FISViewer
 from lfa_toolbox.view.mf_viewer import MembershipFunctionViewer
+
+from .utils import parse_fuzzy_system_from_description, to_linguistic_components
 
 
 class FuzzyCocoPlotMixin:
@@ -20,49 +23,43 @@ class FuzzyCocoPlotMixin:
       - ``self._predict`` (if used in ``plot_aggregated_output``)
     """
 
-    def plot_fuzzy_sets(self, variable=None, **kwargs):
+    def plot_fuzzy_sets(self, variable=None, target_rescale=None, **kwargs):
         """Plot membership functions for variables.
 
         Args:
             variable: None, str, or list[str]. If None, plot all variables; if str,
                 plot only that variable; if list, plot each listed variable.
+            target_rescale: Optional scaling factor applied to output variables for visualization.
             **kwargs: Extra options passed to the membership function viewer.
         """
+        variables, _, _ = self._get_plot_components(target_rescale)
+        var_lookup = {lv.name: lv for lv in variables}
         var_list = self._to_var_list(variable)
 
-        # Helper to fetch a LinguisticVariable by name
-        def get_lv(name):
-            lv = next((v for v in self.variables_ if v.name == name), None)
+        if var_list is None:
+            names_iter = [lv.name for lv in variables]
+        else:
+            names_iter = var_list
+
+        for name in names_iter:
+            lv = var_lookup.get(name)
             if lv is None:
                 raise ValueError(f"Variable '{name}' not found in self.variables_.")
-            return lv
+            fig, ax = plt.subplots()
+            ax.set_title(lv.name)
+            for label, mf in lv.ling_values.items():
+                MembershipFunctionViewer(mf, ax=ax, label=label, **kwargs)
+            ax.legend()
+            plt.show()
 
-        if var_list is None:
-            # all variables
-            for lv in self.variables_:
-                fig, ax = plt.subplots()
-                ax.set_title(lv.name)
-                for label, mf in lv.ling_values.items():
-                    MembershipFunctionViewer(mf, ax=ax, label=label, **kwargs)
-                ax.legend()
-                plt.show()
-        else:
-            for name in var_list:
-                lv = get_lv(name)
-                fig, ax = plt.subplots()
-                ax.set_title(lv.name)
-                for label, mf in lv.ling_values.items():
-                    MembershipFunctionViewer(mf, ax=ax, label=label, **kwargs)
-                ax.legend()
-                plt.show()
-
-    def plot_fuzzification(self, sample, variable=None, **kwargs):
+    def plot_fuzzification(self, sample, variable=None, target_rescale=None, **kwargs):
         """Plot membership functions and overlay fuzzification for a sample.
 
         Args:
             sample: Array-like, dict, or pandas Series holding crisp inputs.
             variable: None, str, or list[str]. If None, plot all input variables
                 present in the sample; if str, only that variable; if list, each listed variable.
+            target_rescale: Optional scaling factor for output variables when visualizing.
             **kwargs: Extra options forwarded to the membership function viewer.
         """
         # Normalize sample -> dict of {feature_name: value}
@@ -80,34 +77,36 @@ class FuzzyCocoPlotMixin:
                 "Could not interpret `sample`. Provide a dict/Series or an array aligned with `feature_names_in_`."
             ) from e
 
+        variables, _, _ = self._get_plot_components(target_rescale)
+        var_lookup = {lv.name: lv for lv in variables}
         var_list = self._to_var_list(variable)
+        factor = float(target_rescale) if target_rescale else None
 
-        # Build iterable of linguistic variables to plot (input vars only)
-        def is_output(lv):
-            # Heuristic: skip classic output names; adapt if you store IO flags
-            return lv.name.upper() in {"OUT", "TARGET"}  # adjust if needed
+        output_names = self._output_variable_names()
+        output_names_upper = {name.upper() for name in output_names}
+
+        def is_output_name(name):
+            if output_names:
+                return name in output_names or name.upper() in output_names_upper
+            return name.upper() in {"OUT", "TARGET"}
 
         if var_list is None:
-            lvs = [lv for lv in self.variables_ if not is_output(lv) and lv.name in sample_dict]
+            names_iter = [name for name in var_lookup if not is_output_name(name) and name in sample_dict]
         else:
-            # Validate names and keep only those present in the sample
-            name_set = set(var_list)
-            lvs = []
-            for name in name_set:
-                lv = next((v for v in self.variables_ if v.name == name), None)
+            names_iter = []
+            for name in set(var_list):
+                lv = var_lookup.get(name)
                 if lv is None:
                     raise ValueError(f"Variable '{name}' not found in self.variables_.")
-                if is_output(lv):
-                    # Skip output variable in fuzzification; it has no crisp input
+                if name not in sample_dict:
                     continue
-                if lv.name not in sample_dict:
-                    # silently skip if sample lacks this feature
-                    continue
-                lvs.append(lv)
+                names_iter.append(name)
 
-        # Plot
-        for lv in lvs:
-            crisp_value = sample_dict[lv.name]
+        for name in names_iter:
+            lv = var_lookup[name]
+            crisp_value = sample_dict[name]
+            if factor and is_output_name(name):
+                crisp_value = float(crisp_value) * factor
             fig, ax = plt.subplots()
             ax.set_title(f"{lv.name} (Input: {crisp_value})")
             for label, mf in lv.ling_values.items():
@@ -181,7 +180,7 @@ class FuzzyCocoPlotMixin:
         fig.tight_layout()
         plt.show()
 
-    def plot_aggregated_output(self, input_sample, figsize=(12, 10)):
+    def plot_aggregated_output(self, input_sample, figsize=(12, 10), target_rescale=None):
         """Visualize the aggregated fuzzy output for an input sample.
 
         Uses a ``SingletonFIS`` to mirror the C++ singleton-based defuzzification.
@@ -189,36 +188,94 @@ class FuzzyCocoPlotMixin:
         Args:
             input_sample: Single sample of crisp input values.
             figsize: Matplotlib figure size.
+            target_rescale: Optional scaling factor applied to output variables for visualization.
         """
 
         # Build a mapping for the input values.
-        # input_dict = {name: value for name, value in zip(self.feature_names_in_, input_sample, strict=False)}
+        if hasattr(input_sample, "to_dict"):
+            sample_dict = dict(input_sample.to_dict())
+        elif isinstance(input_sample, dict):
+            sample_dict = dict(input_sample)
+        else:
+            try:
+                sample_dict = {
+                    name: float(value) for name, value in zip(self.feature_names_in_, input_sample, strict=False)
+                }
+            except Exception as exc:
+                raise ValueError(
+                    "Provide as input_sample a dict/Series or an array aligned with `feature_names_in_`."
+                ) from exc
 
-        # Retrieve the output linguistic variable
-        output_lv = next(
-            (lv for lv in self.variables_ if lv.name.upper() == self.target_name_in_.upper()),
+        variables, rules, default_rules = self._get_plot_components(target_rescale)
+        var_lookup = {lv.name: lv for lv in variables}
+
+        # output_names = self._output_variable_names()
+        input_names = list(self.feature_names_in_)
+        missing = [name for name in input_names if name not in sample_dict]
+        if missing:
+            missing_str = ", ".join(missing)
+            raise ValueError(f"Missing values for input variables: {missing_str}")
+
+        input_dict = {name: float(sample_dict[name]) for name in input_names}
+
+        target_lv = next(
+            (lv for lv in var_lookup.values() if lv.name.upper() == self.target_name_in_.upper()),
             None,
         )
 
-        if output_lv is None:
-            raise ValueError("Output linguistic variable 'OUT' not found in self.variables_.")
+        if target_lv is None:
+            available = ", ".join(sorted(var_lookup))
+            raise ValueError(
+                f"Output linguistic variable '{self.target_name_in_}' not found; available variables: {available}"
+            )
 
-        # Create a SingletonFIS instance using the learned rules and default rule.
+        # Create a SingletonFIS instance using the (optionally) rescaled rules.
         fis = SingletonFIS(
-            rules=self.rules_,
-            default_rule=(self.default_rules_[0] if self.default_rules_ else None),
+            rules=rules,
+            default_rule=(default_rules[0] if default_rules else None),
         )
 
-        # result = fis.predict(input_dict)
-        # result_cpp = self._predict(input_sample)
-
-        # if not np.isclose(float(result.get(self.target_name_in_)), float(result_cpp[0])):
-        #    raise ValueError(
-        #        f"Python and C++ defuzzification results do not match: {result} vs. {result_cpp}"
-        #    )
-        # Show the aggregated fuzzy output via FISViewer.
+        fis.predict(input_dict)
         fisv = FISViewer(fis, figsize=figsize)
         fisv.show()
+
+    def _get_plot_components(self, target_rescale):
+        """Return variables/rules/default rules, rescaling outputs when requested."""
+        if not target_rescale or target_rescale == 1:
+            return self.variables_, self.rules_, self.default_rules_
+
+        desc = getattr(self, "description_", None)
+        if not desc:
+            return self.variables_, self.rules_, self.default_rules_
+
+        factor = float(target_rescale)
+        scaled_desc = copy.deepcopy(desc)
+
+        try:
+            output_vars = scaled_desc["fuzzy_system"]["variables"]["output"]
+        except (TypeError, KeyError):
+            return self.variables_, self.rules_, self.default_rules_
+
+        for sets in output_vars.values():
+            for label, pos in list(sets.items()):
+                try:
+                    sets[label] = float(pos) * factor
+                except (TypeError, ValueError):
+                    sets[label] = pos
+
+        variables_dict, rules_dict, defaults_dict = parse_fuzzy_system_from_description(scaled_desc)
+        scaled_vars, scaled_rules, scaled_defaults = to_linguistic_components(variables_dict, rules_dict, defaults_dict)
+        return scaled_vars, scaled_rules, scaled_defaults
+
+    def _output_variable_names(self):
+        names = set()
+        target_names = getattr(self, "target_names_in_", None)
+        if target_names:
+            names.update(target_names)
+        target_name = getattr(self, "target_name_in_", None)
+        if target_name:
+            names.add(target_name)
+        return names
 
     def _to_var_list(self, variable):
         """Normalize `variable` into a list of variable names or None."""
