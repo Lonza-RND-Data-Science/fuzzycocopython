@@ -1,0 +1,253 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FuzzyCocoPython documentation &mdash; FuzzyCocoPython 0.0.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=7026087e"></script>
+      <script src="_static/doctools.js?v=9bcbadda"></script>
+      <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script async="async" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Quickstart" href="quickstart.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="#" class="icon icon-home">
+            FuzzyCocoPython
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Guide</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="quickstart.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="parameters.html">Parameters Guide</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">API Reference</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="api/index.html">API Reference</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="#">FuzzyCocoPython</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="#" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">FuzzyCocoPython documentation</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/index.md.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="fuzzycocopython-documentation">
+<h1>FuzzyCocoPython documentation<a class="headerlink" href="#fuzzycocopython-documentation" title="Link to this heading"></a></h1>
+</section>
+<section id="fuzzycocopython">
+<h1>FuzzyCocoPython<a class="headerlink" href="#fuzzycocopython" title="Link to this heading"></a></h1>
+<p><a class="reference external" href="https://github.com/Lonza-RND-Data-Science/fuzzycocopython/actions/workflows/tests.yml"><img alt="Tests" src="https://github.com/Lonza-RND-Data-Science/fuzzycocopython/actions/workflows/tests.yml/badge.svg" /></a>
+<a class="reference external" href="https://github.com/Lonza-RND-Data-Science/fuzzycocopython/actions/workflows/build.yml"><img alt="Build" src="https://github.com/Lonza-RND-Data-Science/fuzzycocopython/actions/workflows/build.yml/badge.svg" /></a>
+<a class="reference external" href="https://Lonza-RND-Data-Science.github.io/fuzzycocopython/coverage/"><img alt="Coverage" src="https://raw.githubusercontent.com/Lonza-RND-Data-Science/fuzzycocopython/main/badges/coverage.svg" /></a>
+<a class="reference external" href="https://pypi.org/project/fuzzycocopython/"><img alt="PyPI" src="https://img.shields.io/badge/PyPI-pending-lightgrey" /></a>
+<a class="reference external" href="https://www.gnu.org/licenses/agpl-3.0.html"><img alt="License: AGPL-3.0-or-later" src="https://img.shields.io/badge/license-AGPL--3.0--or--later-success" /></a>
+<a class="reference internal" href="#installation"><span class="xref myst"><img alt="Python Versions" src="https://img.shields.io/badge/python-3.10%20%E2%80%93%203.14-blue" /></span></a></p>
+<p><a class="reference external" href="https://Lonza-RND-Data-Science.github.io/fuzzycocopython/">Documentation</a></p>
+<p>Python bindings and scikit-learn style estimators for <a class="reference external" href="https://github.com/Lonza-RND-Data-Science/fuzzycoco">fuzzycoco</a>,
+an evolutionary fuzzy rule learning engine written in C++. This package wraps the C++ core as a Python module
+and exposes <code class="docutils literal notranslate"><span class="pre">FuzzyCocoClassifier</span></code> and <code class="docutils literal notranslate"><span class="pre">FuzzyCocoRegressor</span></code> with a familiar fit/predict API.</p>
+<section id="features">
+<h2>Features<a class="headerlink" href="#features" title="Link to this heading"></a></h2>
+<ul class="simple">
+<li><p>Train fuzzy rule-based classifiers and regressors using <code class="docutils literal notranslate"><span class="pre">fit</span></code>, <code class="docutils literal notranslate"><span class="pre">predict</span></code>, and <code class="docutils literal notranslate"><span class="pre">score</span></code></p></li>
+<li><p>Inspect learned linguistic variables, rules, and activation statistics from Python</p></li>
+<li><p>Persist trained estimators with <code class="docutils literal notranslate"><span class="pre">save</span></code>/<code class="docutils literal notranslate"><span class="pre">load</span></code> helpers based on <code class="docutils literal notranslate"><span class="pre">joblib</span></code></p></li>
+</ul>
+</section>
+<section id="installation">
+<h2>Installation<a class="headerlink" href="#installation" title="Link to this heading"></a></h2>
+<p>This package is not yet on PyPI; install it from source. Make sure the following prerequisites are available:</p>
+<ul class="simple">
+<li><p>A C++17 compiler toolchain (GCC/Clang on Linux &amp; macOS, MSVC on Windows)</p></li>
+<li><p><a class="reference external" href="https://cmake.org/">CMake</a> ≥ 3.21 and <a class="reference external" href="https://ninja-build.org/">Ninja</a> on your PATH</p></li>
+<li><p><a class="reference external" href="https://github.com/astral-sh/uv">uv</a> is recommended for dependency management, but <code class="docutils literal notranslate"><span class="pre">pip</span></code> works just as well</p></li>
+</ul>
+<p>Clone the repository, initialise the <code class="docutils literal notranslate"><span class="pre">fuzzycoco</span></code> submodule, then build and install in editable mode with uv:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/Lonza-RND-Data-Science/fuzzycocopython.git
+<span class="nb">cd</span><span class="w"> </span>fuzzycocopython
+git<span class="w"> </span>submodule<span class="w"> </span>update<span class="w"> </span>--init<span class="w"> </span>--recursive
+
+uv<span class="w"> </span>venv
+<span class="nb">source</span><span class="w"> </span>.venv/bin/activate
+uv<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span>.
+</pre></div>
+</div>
+<p>If you prefer the standard tooling, create a virtual environment manually and install with <code class="docutils literal notranslate"><span class="pre">pip</span></code>:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>venv<span class="w"> </span>.venv
+<span class="nb">source</span><span class="w"> </span>.venv/bin/activate
+
+pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span>.
+</pre></div>
+</div>
+<p>When you only need the published bindings and not the repository, install straight from GitHub:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>git+https://github.com/Lonza-RND-Data-Science/fuzzycocopython.git
+</pre></div>
+</div>
+<p>For development tasks (tests, linting, docs) install the optional toolchain:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>uv<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span><span class="s1">&#39;.[dev]&#39;</span>
+</pre></div>
+</div>
+<p>The build compiles the bundled C++ bindings. Refer to the
+<a class="reference external" href="https://github.com/Lonza-RND-Data-Science/fuzzycoco"><code class="docutils literal notranslate"><span class="pre">fuzzycoco</span></code> project</a> for background on the engine itself.</p>
+</section>
+<section id="quick-start">
+<h2>Quick start<a class="headerlink" href="#quick-start" title="Link to this heading"></a></h2>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">sklearn.datasets</span><span class="w"> </span><span class="kn">import</span> <span class="n">load_iris</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">fuzzycocopython</span><span class="w"> </span><span class="kn">import</span> <span class="n">FuzzyCocoClassifier</span>
+
+<span class="n">data</span> <span class="o">=</span> <span class="n">load_iris</span><span class="p">(</span><span class="n">as_frame</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="n">clf</span> <span class="o">=</span> <span class="n">FuzzyCocoClassifier</span><span class="p">(</span><span class="n">random_state</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+<span class="n">clf</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">data</span><span class="p">,</span> <span class="n">data</span><span class="o">.</span><span class="n">target</span><span class="p">)</span>
+
+<span class="n">preds</span> <span class="o">=</span> <span class="n">clf</span><span class="o">.</span><span class="n">predict</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">data</span><span class="p">)</span>
+<span class="n">score</span> <span class="o">=</span> <span class="n">clf</span><span class="o">.</span><span class="n">score</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">data</span><span class="p">,</span> <span class="n">data</span><span class="o">.</span><span class="n">target</span><span class="p">)</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Accuracy: </span><span class="si">{</span><span class="n">score</span><span class="si">:</span><span class="s2">.3f</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">clf</span><span class="o">.</span><span class="n">rules_df_</span><span class="o">.</span><span class="n">head</span><span class="p">())</span>
+</pre></div>
+</div>
+<p>The estimators now expose scikit-learn style hyper-parameters for direct tuning:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">fuzzycocopython</span><span class="w"> </span><span class="kn">import</span> <span class="n">FuzzyCocoClassifier</span>
+
+<span class="n">model</span> <span class="o">=</span> <span class="n">FuzzyCocoClassifier</span><span class="p">(</span><span class="n">nb_rules</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="n">nb_sets_in</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">random_state</span><span class="o">=</span><span class="mi">42</span><span class="p">)</span>
+<span class="n">model</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+<span class="n">preds</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">predict</span><span class="p">(</span><span class="n">X</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Bit widths for variable and set indices are automatically derived from the training data. Override them with <code class="docutils literal notranslate"><span class="pre">nb_bits_vars_in</span></code>, <code class="docutils literal notranslate"><span class="pre">nb_bits_sets_in</span></code>, <code class="docutils literal notranslate"><span class="pre">nb_bits_vars_out</span></code>, or <code class="docutils literal notranslate"><span class="pre">nb_bits_sets_out</span></code> when you need full manual control.</p>
+<p>For a guided tour, open <code class="docutils literal notranslate"><span class="pre">demo.ipynb</span></code>. Additional usage examples live in <code class="docutils literal notranslate"><span class="pre">tests/test_fuzzycocopython.py</span></code>.</p>
+</section>
+<section id="documentation">
+<h2>Documentation<a class="headerlink" href="#documentation" title="Link to this heading"></a></h2>
+<p>Full API documentation is available at <a class="reference external" href="https://Lonza-RND-Data-Science.github.io/fuzzycocopython/">Lonza-RND-Data-Science.github.io/fuzzycocopython</a>.
+To build the docs locally run:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>uv<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span><span class="s1">&#39;.[docs]&#39;</span>
+uv<span class="w"> </span>run<span class="w"> </span>sphinx-build<span class="w"> </span>-W<span class="w"> </span>-b<span class="w"> </span>html<span class="w"> </span>docs<span class="w"> </span>docs/_build/html
+</pre></div>
+</div>
+</section>
+<section id="pre-commit-hooks">
+<h2>Pre-commit hooks<a class="headerlink" href="#pre-commit-hooks" title="Link to this heading"></a></h2>
+<p>Install and activate the provided hooks (Ruff lint/format, mypy, general hygiene) once per clone:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>uv<span class="w"> </span>run<span class="w"> </span>pre-commit<span class="w"> </span>install
+</pre></div>
+</div>
+<p>Run them against the full tree when needed:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>uv<span class="w"> </span>run<span class="w"> </span>pre-commit<span class="w"> </span>run<span class="w"> </span>--all-files
+</pre></div>
+</div>
+</section>
+<section id="license">
+<h2>License<a class="headerlink" href="#license" title="Link to this heading"></a></h2>
+<p>This fuzzycoco software is licensed under the GNU Affero General Public License v3.0 (AGPL-3.0).</p>
+</section>
+<section id="contents">
+<h2>Contents<a class="headerlink" href="#contents" title="Link to this heading"></a></h2>
+<div class="toctree-wrapper compound">
+<p class="caption" role="heading"><span class="caption-text">Guide</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="quickstart.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="parameters.html">Parameters Guide</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="parameters.html#high-level-structure">High-level structure</a></li>
+<li class="toctree-l2"><a class="reference internal" href="parameters.html#globalparams">GlobalParams</a></li>
+<li class="toctree-l2"><a class="reference internal" href="parameters.html#varsparams-input-output">VarsParams (input/output)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="parameters.html#evolutionparams-rules-params-mfs-params">EvolutionParams (rules_params / mfs_params)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="parameters.html#fitnessparams">FitnessParams</a></li>
+<li class="toctree-l2"><a class="reference internal" href="parameters.html#automatic-defaults-applied-during-fit">Automatic defaults applied during <code class="docutils literal notranslate"><span class="pre">fit</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="parameters.html#configuring-estimators-from-python">Configuring estimators from Python</a></li>
+</ul>
+</li>
+</ul>
+</div>
+<div class="toctree-wrapper compound">
+<p class="caption" role="heading"><span class="caption-text">API Reference</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="api/index.html">API Reference</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="api/index.html#quick-example">Quick example</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/index.html#estimators">Estimators</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/index.html#utilities">Utilities</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/index.html#plotting">Plotting</a></li>
+</ul>
+</li>
+</ul>
+</div>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="quickstart.html" class="btn btn-neutral float-right" title="Quickstart" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, FuzzyCocoPython contributors.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
