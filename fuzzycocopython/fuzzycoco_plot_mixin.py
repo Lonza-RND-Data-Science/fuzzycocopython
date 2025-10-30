@@ -209,7 +209,7 @@ class FuzzyCocoPlotMixin:
             default_rule=(self.default_rules_[0] if self.default_rules_ else None),
         )
 
-        # result = fis.predict(input_dict)
+        result = fis.predict(input_dict)
         # result_cpp = self._predict(input_sample)
 
         # if not np.isclose(float(result.get(self.target_name_in_)), float(result_cpp[0])):
