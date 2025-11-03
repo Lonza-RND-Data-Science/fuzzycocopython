@@ -285,6 +285,14 @@ PYBIND11_MODULE(_fuzzycoco_core, m) {
         .def("run", [](FuzzyCoco &self) {
             self.run();
         })
+        .def("init",
+             static_cast<void (FuzzyCoco::*)(bool, double)>(&FuzzyCoco::init),
+             py::arg("influence") = false,
+             py::arg("evolving_ratio") = 0.8)
+        .def("step", &FuzzyCoco::step)
+        .def("current_generation", &FuzzyCoco::currentGenerationNumber)
+        .def("current_fitness", &FuzzyCoco::currentFitness)
+        .def("has_active_generation", &FuzzyCoco::hasActiveGeneration)
         .def("select_best", &FuzzyCoco::selectBestFuzzySystem)
         .def("describe", [](FuzzyCoco &self) {
             return named_list_to_python(self.describeBestFuzzySystem());
