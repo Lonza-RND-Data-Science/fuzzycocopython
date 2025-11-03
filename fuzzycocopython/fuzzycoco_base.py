@@ -831,6 +831,34 @@ class FuzzyCocoClassifier(ClassifierMixin, FuzzyCocoPlotMixin, _FuzzyCocoBase):
             self.classes_ = [np.unique(y_arr[:, i]) for i in range(y_arr.shape[1])]
         return super().fit(X, y, **kwargs)
 
+    def fit_stepwise(
+        self,
+        X,
+        y,
+        *,
+        callback=None,
+        max_generations=None,
+        max_fitness=None,
+        influence=None,
+        evolving_ratio=None,
+        **fit_params,
+    ):
+        y_arr = np.asarray(y)
+        if y_arr.ndim == 1:
+            self.classes_ = np.unique(y_arr)
+        else:
+            self.classes_ = [np.unique(y_arr[:, i]) for i in range(y_arr.shape[1])]
+        return super().fit_stepwise(
+            X,
+            y,
+            callback=callback,
+            max_generations=max_generations,
+            max_fitness=max_fitness,
+            influence=influence,
+            evolving_ratio=evolving_ratio,
+            **fit_params,
+        )
+
     def predict(self, X):
         """Predict class labels for ``X``.
 
