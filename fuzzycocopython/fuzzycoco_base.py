@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import copy
 import os
+from collections.abc import Callable, Sequence
+from dataclasses import dataclass
 
 import joblib
 import numpy as np
@@ -20,6 +22,17 @@ from .utils import (
     to_tables_components,
     to_views_components,
 )
+
+
+@dataclass(frozen=True)
+class FitStepInfo:
+    """Snapshot of one training generation."""
+
+    generation: int
+    fitness: float
+    history: Sequence[float]
+    model: FuzzyCoco
+    estimator: _FuzzyCocoBase
 
 
 def save_model(model, filepath, *, compress=3):
@@ -345,6 +358,16 @@ class _FuzzyCocoBase(BaseEstimator):
             values = values_matrix[0]
         return np.asarray(values, dtype=float)
 
+    def _validate_fit_kwargs(self, fit_params):
+        params = dict(fit_params)
+        feature_names = params.pop("feature_names", None)
+        target_name = params.pop("target_name", None)
+        params.pop("output_filename", None)
+        if params:
+            unexpected = ", ".join(sorted(params))
+            raise TypeError(f"Unexpected fit parameters: {unexpected}")
+        return feature_names, target_name
+
     # ──────────────────────────────────────────────────────────────────────
     # public API
     # ──────────────────────────────────────────────────────────────────────
@@ -361,13 +384,63 @@ class _FuzzyCocoBase(BaseEstimator):
         Returns:
             The fitted estimator instance.
         """
-        feature_names = fit_params.pop("feature_names", None)
-        target_name = fit_params.pop("target_name", None)
-        fit_params.pop("output_filename", None)  # backward compat, no-op
-        if fit_params:
-            unexpected = ", ".join(sorted(fit_params))
-            raise TypeError(f"Unexpected fit parameters: {unexpected}")
+        feature_names, target_name = self._validate_fit_kwargs(fit_params)
+        return self._fit_internal(
+            X,
+            y,
+            feature_names=feature_names,
+            target_name=target_name,
+            callback=None,
+            max_generations=None,
+            max_fitness=None,
+            influence=None,
+            evolving_ratio=None,
+        )
 
+    def fit_stepwise(
+        self,
+        X,
+        y,
+        *,
+        callback: Callable[[FitStepInfo], object] | None = None,
+        max_generations: int | None = None,
+        max_fitness: float | None = None,
+        influence: bool | None = None,
+        evolving_ratio: float | None = None,
+        **fit_params,
+    ):
+        """Fit while exposing each training generation to a callback.
+
+        The provided ``callback`` receives a :class:`FitStepInfo` instance
+        after every generation. Returning ``False`` from the callback stops
+        the evolution early; any other return value continues the loop.
+        """
+        feature_names, target_name = self._validate_fit_kwargs(fit_params)
+        return self._fit_internal(
+            X,
+            y,
+            feature_names=feature_names,
+            target_name=target_name,
+            callback=callback,
+            max_generations=max_generations,
+            max_fitness=max_fitness,
+            influence=influence,
+            evolving_ratio=evolving_ratio,
+        )
+
+    def _fit_internal(
+        self,
+        X,
+        y,
+        *,
+        feature_names,
+        target_name,
+        callback,
+        max_generations,
+        max_fitness,
+        influence,
+        evolving_ratio,
+    ):
         X_arr, y_arr = check_X_y(
             X,
             y,
@@ -430,13 +503,90 @@ class _FuzzyCocoBase(BaseEstimator):
         dfin, dfout = self._prepare_dataframes(X_arr, y_2d, y_headers=y_headers)
         rng = RandomGenerator(self._resolve_seed())
         self.model_ = FuzzyCoco(dfin, dfout, params_obj, rng)
-        self.model_.run()
+        self._fitness_trace = []
+
+        self._run_training_loop(
+            callback=callback,
+            max_generations=max_generations,
+            max_fitness=max_fitness,
+            influence=influence,
+            evolving_ratio=evolving_ratio,
+        )
+
+        self._finalize_after_training()
+        return self
+
+    def _run_training_loop(
+        self,
+        *,
+        callback: Callable[[FitStepInfo], object] | None,
+        max_generations: int | None,
+        max_fitness: float | None,
+        influence: bool | None,
+        evolving_ratio: float | None,
+    ):
+        if self.model_ is None:
+            raise RuntimeError("Training model has not been initialised")
+        if not hasattr(self, "_fuzzy_params_") or self._fuzzy_params_ is None:
+            raise RuntimeError("Missing FuzzyCoco parameters; call fit first")
+
+        global_params = self._fuzzy_params_.global_params
+
+        total_generations = global_params.max_generations if max_generations is None else max_generations
+        if total_generations is None:
+            total_generations = 0
+        total_generations = int(total_generations)
+        if total_generations < 0:
+            raise ValueError("max_generations must be non-negative")
+
+        target_fitness = global_params.max_fitness if max_fitness is None else max_fitness
+        if target_fitness is None:
+            target_fitness = float("inf")
+        else:
+            target_fitness = float(target_fitness)
+
+        influence_flag = global_params.influence_rules_initial_population if influence is None else bool(influence)
+        evolving_ratio_value = (
+            global_params.influence_evolving_ratio if evolving_ratio is None else float(evolving_ratio)
+        )
+
+        model = self.model_
+        model.init(influence=influence_flag, evolving_ratio=evolving_ratio_value)
+
+        if total_generations == 0:
+            return
+
+        for _ in range(total_generations):
+            fitness = float(model.step())
+            generation = int(model.current_generation())
+            self._fitness_trace.append(fitness)
+
+            if callback is not None:
+                step_info = FitStepInfo(
+                    generation=generation,
+                    fitness=fitness,
+                    history=tuple(self._fitness_trace),
+                    model=model,
+                    estimator=self,
+                )
+                should_continue = callback(step_info)
+                if should_continue is False:
+                    break
+
+            if np.isfinite(target_fitness) and fitness >= target_fitness:
+                break
+
+    def _finalize_after_training(self):
+        if self.model_ is None:
+            raise RuntimeError("Training model has not been initialised")
+
         self.model_.select_best()
         self.description_ = self.model_.describe()
 
         fuzzy_system_desc = self.description_.get("fuzzy_system")
         if fuzzy_system_desc is None:
             raise RuntimeError("Model description missing 'fuzzy_system' section")
+
         self._fuzzy_system_dict_ = copy.deepcopy(fuzzy_system_desc)
         self._fuzzy_system_string_ = self.model_.serialize_fuzzy_system()
         self._fuzzy_system_ = FuzzySystem.load_from_string(self._fuzzy_system_string_)
@@ -446,8 +596,10 @@ class _FuzzyCocoBase(BaseEstimator):
         self.variables_view_, self.rules_view_, self.default_rules_view_ = to_views_components(*parsed)
         self.variables_df_, self.rules_df_ = to_tables_components(*parsed)
 
+        self.fitness_history_ = np.asarray(self._fitness_trace, dtype=float)
+        self.n_generations_run_ = int(self.model_.current_generation())
+
         self.is_fitted_ = True
-        return self
 
     def predict(self, X):
         """Predict outputs for ``X``.
@@ -691,6 +843,34 @@ class FuzzyCocoClassifier(ClassifierMixin, FuzzyCocoPlotMixin, _FuzzyCocoBase):
         else:
             self.classes_ = [np.unique(y_arr[:, i]) for i in range(y_arr.shape[1])]
         return super().fit(X, y, **kwargs)
+
+    def fit_stepwise(
+        self,
+        X,
+        y,
+        *,
+        callback=None,
+        max_generations=None,
+        max_fitness=None,
+        influence=None,
+        evolving_ratio=None,
+        **fit_params,
+    ):
+        y_arr = np.asarray(y)
+        if y_arr.ndim == 1:
+            self.classes_ = np.unique(y_arr)
+        else:
+            self.classes_ = [np.unique(y_arr[:, i]) for i in range(y_arr.shape[1])]
+        return super().fit_stepwise(
+            X,
+            y,
+            callback=callback,
+            max_generations=max_generations,
+            max_fitness=max_fitness,
+            influence=influence,
+            evolving_ratio=evolving_ratio,
+            **fit_params,
+        )
 
     def predict(self, X):
         """Predict class labels for ``X``.
