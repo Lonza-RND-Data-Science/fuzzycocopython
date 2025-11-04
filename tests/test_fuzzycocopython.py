@@ -198,6 +198,22 @@ def test_rules_activations_and_stats():
     assert matrix.shape[0] == X.shape[0]
     assert matrix.shape[1] == stats.shape[0]
 
+
+def test_rules_stats_after_loading(tmp_path):
+    X, y_class, _ = _generate_dataset(seed=11)
+    model = FuzzyCocoClassifier(random_state=123)
+    model.fit(X, y_class)
+
+    path = tmp_path / "model.joblib"
+    model.save(path)
+
+    loaded = FuzzyCocoClassifier.load(path)
+    stats, matrix = loaded.rules_stat_activations(X, return_matrix=True)
+
+    assert stats.shape[0] == matrix.shape[1]
+    assert matrix.shape[0] == X.shape[0]
+    assert not stats.empty
+
     # sampling rules_activations for a single sample is consistent with the matrix
     single = model.rules_activations(X[0])
     assert single.shape == (matrix.shape[1],)

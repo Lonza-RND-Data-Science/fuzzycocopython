@@ -338,8 +338,11 @@ class _FuzzyCocoBase(BaseEstimator):
         else:
             from . import _fuzzycoco_core
 
-            mapping = {name: float(value) for name, value in zip(self.feature_names_in_, sample, strict=False)}
-            values = _fuzzycoco_core._rules_fire_from_description(self.description_, mapping)
+            values_matrix = _fuzzycoco_core._rules_fire_matrix_from_description(
+                self.description_,
+                [sample],
+            )
+            values = values_matrix[0]
         return np.asarray(values, dtype=float)
 
     # ──────────────────────────────────────────────────────────────────────
@@ -527,7 +530,17 @@ class _FuzzyCocoBase(BaseEstimator):
                 f"Expected {self.n_features_in_} features, got {arr.shape[1]}",
             )
 
-        activations = np.vstack([self._compute_rule_fire_levels(row.astype(float).tolist()) for row in arr])
+        model = getattr(self, "model_", None)
+        if model is not None:
+            activations = np.vstack([model.rules_fire_from_values(row.astype(float).tolist()) for row in arr])
+        else:
+            from . import _fuzzycoco_core
+
+            matrix = _fuzzycoco_core._rules_fire_matrix_from_description(
+                self.description_,
+                arr.astype(float).tolist(),
+            )
+            activations = np.asarray(matrix, dtype=float)
 
         sums = activations.sum(axis=1, keepdims=True)
         share = np.divide(activations, sums, out=np.zeros_like(activations), where=sums > 0)

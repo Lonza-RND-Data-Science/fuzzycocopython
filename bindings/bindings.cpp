@@ -128,6 +128,29 @@ PYBIND11_MODULE(_fuzzycoco_core, m) {
         py::arg("description"),
         py::arg("sample"));
 
+    m.def(
+        "_rules_fire_matrix_from_description",
+        [](py::dict saved_desc, py::iterable samples_iterable) {
+            auto saved = python_to_named_list("saved", saved_desc);
+            auto fs = FuzzySystem::load(saved["fuzzy_system"]);
+            const auto& db = fs.getDB();
+            const int nb_inputs = db.getNbInputVars();
+
+            std::vector<std::vector<double>> matrix;
+            for (py::handle row_obj : samples_iterable) {
+                std::vector<double> row = row_obj.cast<std::vector<double>>();
+                if (static_cast<int>(row.size()) != nb_inputs) {
+                    throw std::runtime_error(
+                        "Sample has " + std::to_string(row.size()) +
+                        " features, expected " + std::to_string(nb_inputs));
+                }
+                matrix.emplace_back(fs.computeRulesFireLevels(row));
+            }
+            return matrix;
+        },
+        py::arg("description"),
+        py::arg("samples"));
+
     // ------------------------ DataFrame ----------------------------------
     py::class_<DataFrame>(m, "DataFrame")
         .def(py::init<const std::vector<std::vector<std::string>>&, bool>())
