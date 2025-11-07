@@ -97,6 +97,17 @@ def generate_generic_labels(n):
                 "High",
                 "Very High",
             ]
+        case 8:
+            return [
+                "Very Very Low",
+                "Very Low",
+                "Slightly Low",
+                "Low",
+                "High",
+                "Slightly High",
+                "Very High",
+                "Very Very High",
+            ]
         case _:
             return [f"Set {i + 1}" for i in range(n)]
 
