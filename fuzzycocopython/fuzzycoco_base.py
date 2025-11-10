@@ -1085,7 +1085,5 @@ class FuzzyCocoRegressor(RegressorMixin, FuzzyCocoPlotMixin, _FuzzyCocoBase):
         check_is_fitted(self, attributes=["model_"])
         dfin, _ = self._prepare_inference_input(X)
         preds_df = self._predict_dataframe(dfin)
-        print("after return preds_df")
         raw = np.asarray(preds_df.to_list(), dtype=float)
-        print("after to list")
         return raw.ravel() if raw.shape[1] == 1 else raw
