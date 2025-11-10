@@ -101,10 +101,10 @@ def generate_generic_labels(n):
             return [
                 "Very Very Low",
                 "Very Low",
-                "Slightly Low",
                 "Low",
-                "High",
+                "Slightly Low",
                 "Slightly High",
+                "High",
                 "Very High",
                 "Very Very High",
             ]
