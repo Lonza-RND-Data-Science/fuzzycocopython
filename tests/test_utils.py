@@ -46,7 +46,7 @@ def test_generate_generic_labels_progression():
     six_labels = generate_generic_labels(6)
     assert six_labels[2] == "Slightly Low"
     assert six_labels[-1] == "Very High"
-    assert generate_generic_labels(8)[-1] == "Set 8"
+    assert generate_generic_labels(8)[-1] == "Very Very High"
 
 
 def test_to_linguistic_components_assigns_generic_labels(sample_description):

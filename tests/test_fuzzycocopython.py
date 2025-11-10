@@ -1,3 +1,5 @@
+import copy
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -279,3 +281,121 @@ def test_regressor_custom_scoring():
 
     score = _FuzzyCocoBase.score(reg, X, y_reg, scoring="neg_mean_squared_error")
     assert isinstance(score, float)
+
+
+def _sample_description_single_output():
+    return {
+        "fuzzy_system": {
+            "variables": {
+                "input": {"feature1": {"feature1.low": 0.0, "feature1.high": 1.0}},
+                "output": {"target": {"target.low": 0.0, "target.high": 1.0}},
+            },
+            "rules": {
+                "rule_1": {
+                    "antecedents": {"feature1": {"feature1.low": 1.0}},
+                    "consequents": {"target": {"target.high": 1.0}},
+                }
+            },
+            "default_rules": {"target": "target.low"},
+        },
+        "defuzz_thresholds": {"target": 0.4},
+    }
+
+
+def _sample_description_multi_output():
+    return {
+        "fuzzy_system": {
+            "variables": {
+                "input": {
+                    "feature1": {"feature1.low": 0.0, "feature1.high": 1.0},
+                },
+                "output": {
+                    "target": {"target.low": 0.0, "target.high": 1.0},
+                    "other": {"other.low": -1.0, "other.high": 2.0},
+                },
+            },
+            "rules": {
+                "rule_1": {
+                    "antecedents": {"feature1": {"feature1.low": 1.0}},
+                    "consequents": {
+                        "target": {"target.high": 1.0},
+                        "other": {"other.low": 0.5},
+                    },
+                }
+            },
+            "default_rules": {"target": "target.low", "other": "other.high"},
+        },
+        "defuzz_thresholds": {"target": 0.5, "other": 0.7},
+    }
+
+
+def _prime_model_with_description(model, description):
+    model.description_ = copy.deepcopy(description)
+    model.is_fitted_ = True
+    outputs = list(description["fuzzy_system"]["variables"]["output"].keys())
+    model.target_name_in_ = outputs[0]
+    model.target_names_in_ = outputs
+    model.n_outputs_ = len(outputs)
+    model._fuzzy_system_dict_ = copy.deepcopy(description["fuzzy_system"])
+
+
+def test_set_target_names_single_output():
+    model = FuzzyCocoRegressor()
+    description = _sample_description_single_output()
+    _prime_model_with_description(model, description)
+
+    model.set_target_names("Outcome")
+
+    assert model.target_name_in_ == "Outcome"
+    assert model.target_names_in_ == ["Outcome"]
+    outputs = model.description_["fuzzy_system"]["variables"]["output"]
+    assert list(outputs.keys()) == ["Outcome"]
+    assert set(outputs["Outcome"].keys()) == {"Outcome.low", "Outcome.high"}
+    consequents = model.description_["fuzzy_system"]["rules"]["rule_1"]["consequents"]
+    assert list(consequents.keys()) == ["Outcome"]
+    assert set(consequents["Outcome"].keys()) == {"Outcome.high"}
+    defaults = model.description_["fuzzy_system"]["default_rules"]
+    assert defaults == {"Outcome": "Outcome.low"}
+    thresholds = model.description_["defuzz_thresholds"]
+    assert thresholds == {"Outcome": 0.4}
+
+
+def test_set_target_names_multi_sequence():
+    model = FuzzyCocoRegressor()
+    description = _sample_description_multi_output()
+    _prime_model_with_description(model, description)
+
+    model.set_target_names(["T", "O"])
+
+    assert model.target_name_in_ == "T"
+    assert model.target_names_in_ == ["T", "O"]
+    outputs = model.description_["fuzzy_system"]["variables"]["output"]
+    assert list(outputs.keys()) == ["T", "O"]
+    assert "T.high" in outputs["T"]
+    assert "O.low" in outputs["O"]
+    rule = model.description_["fuzzy_system"]["rules"]["rule_1"]["consequents"]
+    assert set(rule.keys()) == {"T", "O"}
+    assert set(rule["T"].keys()) == {"T.high"}
+    assert set(rule["O"].keys()) == {"O.low"}
+    defaults = model.description_["fuzzy_system"]["default_rules"]
+    assert defaults == {"T": "T.low", "O": "O.high"}
+    thresholds = model.description_["defuzz_thresholds"]
+    assert thresholds == {"T": 0.5, "O": 0.7}
+
+
+def test_set_target_names_duplicate_raises():
+    model = FuzzyCocoRegressor()
+    description = _sample_description_multi_output()
+    _prime_model_with_description(model, description)
+
+    with pytest.raises(ValueError, match="unique"):
+        model.set_target_names({"target": "other"})
+
+
+def test_set_target_names_whitespace_raises():
+    model = FuzzyCocoRegressor()
+    description = _sample_description_single_output()
+    _prime_model_with_description(model, description)
+
+    with pytest.raises(ValueError, match="must not contain"):
+        model.set_target_names("Bad Name")
