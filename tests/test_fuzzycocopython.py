@@ -270,18 +270,49 @@ def test_rules_activations_exposes_default_rule_levels():
         def rules_fire_from_values(self, sample):
             return list(self._values)
 
-    clf = FuzzyCocoClassifier()
-    clf.feature_names_in_ = ["a", "b"]
-    clf.n_features_in_ = 2
-    clf.is_fitted_ = True
-    clf.model_ = DummyModel([0.25, 0.8, np.finfo(np.float64).min])
-    clf._rule_output_vars_ = (("target",), ("target",), ("other",))
-    clf._default_rule_names_ = ("target",)
+    description = {
+        "fuzzy_system": {
+            "variables": {
+                "input": {"feature": {"feature.low": 0.0}},
+                "output": {
+                    "target": {"target.low": 0.0, "target.high": 1.0},
+                    "other": {"other.low": -1.0, "other.high": 1.0},
+                },
+            },
+            "rules": {
+                "rule_1": {
+                    "antecedents": {"feature": {"feature.low": 1.0}},
+                    "consequents": {"target": {"target.high": 1.0}},
+                },
+                "rule_2": {
+                    "antecedents": {"feature": {"feature.low": 1.0}},
+                    "consequents": {"target": {"target.low": 0.0}},
+                },
+                "rule_3": {
+                    "antecedents": {"feature": {"feature.low": 1.0}},
+                    "consequents": {"other": {"other.high": 1.0}},
+                },
+            },
+            "default_rules": {"target": "target.low", "other": "other.low"},
+        }
+    }
 
-    activations = clf.rules_activations([0.0, 0.0])
+    clf = FuzzyCocoClassifier()
+    clf.description_ = copy.deepcopy(description)
+    clf._fuzzy_system_dict_ = copy.deepcopy(description["fuzzy_system"])
+    clf.feature_names_in_ = ["feature"]
+    clf.n_features_in_ = 1
+    clf.is_fitted_ = True
+    sentinel = np.finfo(np.float64).min
+    clf.model_ = DummyModel([0.25, 0.8, sentinel])
+
+    activations = clf.rules_activations([0.0])
     assert isinstance(activations, np.ndarray)
     assert activations.shape == (3,)
-    assert activations.default_rules == {"target": pytest.approx(0.2)}
+    assert activations.default_rules == {
+        "target": pytest.approx(0.2),
+        "other": pytest.approx(0.0),
+    }
 
 
 def test_rules_activations_uses_description_mapping_for_defaults():
@@ -304,17 +335,51 @@ def test_rules_activations_uses_description_mapping_for_defaults():
     assert activations.default_rules == {"target": pytest.approx(0.6)}
 
 
-def test_rule_structure_extraction_tracks_default_order():
-    clf = FuzzyCocoClassifier()
-    description = _sample_description_multi_output()
-    _prime_model_with_description(clf, description)
-    clf.feature_names_in_ = ["feature1"]
-    clf.n_features_in_ = 1
-    clf.is_fitted_ = True
+def test_rules_stat_activations_matrix_carries_default_rules():
+    class DummyModel:
+        def rules_fire_from_values(self, sample):
+            value = float(sample[0])
+            return [value, 1.0 - value]
 
-    outputs, defaults = clf._ensure_rule_structure()
-    assert outputs == (("target", "other"),)
-    assert defaults == ("target", "other")
+    description = {
+        "fuzzy_system": {
+            "variables": {
+                "input": {"feature": {"feature.low": 0.0, "feature.high": 1.0}},
+                "output": {"target": {"target.low": 0.0, "target.high": 1.0}},
+            },
+            "rules": {
+                "rule_1": {
+                    "antecedents": {"feature": {"feature.low": 1.0}},
+                    "consequents": {"target": {"target.high": 1.0}},
+                },
+                "rule_2": {
+                    "antecedents": {"feature": {"feature.high": 1.0}},
+                    "consequents": {"target": {"target.low": 0.0}},
+                },
+            },
+            "default_rules": {"target": "target.low"},
+        }
+    }
+
+    clf = FuzzyCocoClassifier()
+    clf.description_ = copy.deepcopy(description)
+    clf._fuzzy_system_dict_ = copy.deepcopy(description["fuzzy_system"])
+    clf.is_fitted_ = True
+    clf.model_ = DummyModel()
+    clf.feature_names_in_ = ["feature"]
+    clf.n_features_in_ = 1
+    clf.rules_ = ["rule_1", "rule_2"]
+
+    X = np.array([[0.2], [0.8]])
+    stats, matrix = clf.rules_stat_activations(X, return_matrix=True, sort_by_impact=False)
+
+    assert stats.shape[0] == matrix.shape[1]
+    assert isinstance(matrix, np.ndarray)
+    assert hasattr(matrix, "default_rules")
+    assert matrix.default_rules is not None
+    assert len(matrix.default_rules) == 2
+    assert matrix.default_rules[0]["target"] == pytest.approx(0.2)
+    assert matrix.default_rules[1]["target"] == pytest.approx(0.2)
 
 
 def test_classifier_load_type_guard(tmp_path):

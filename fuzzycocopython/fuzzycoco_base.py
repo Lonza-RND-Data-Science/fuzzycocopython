@@ -51,6 +51,20 @@ class RuleActivations(np.ndarray):
         self.default_rules = getattr(parent, "default_rules", None)
 
 
+class RuleActivationMatrix(np.ndarray):
+    """Activation matrix storing per-sample default rule metadata."""
+
+    def __new__(cls, matrix, default_rules=None):
+        obj = np.asarray(matrix, dtype=float).view(cls)
+        obj.default_rules = None if default_rules is None else tuple(default_rules)
+        return obj
+
+    def __array_finalize__(self, parent):
+        if parent is None:
+            return
+        self.default_rules = getattr(parent, "default_rules", None)
+
+
 def save_model(model, filepath, *, compress=3):
     """Save a fitted estimator to disk with joblib.
 
@@ -507,8 +521,8 @@ class _FuzzyCocoBase(BaseEstimator):
         self._fuzzy_system_ = FuzzySystem.load_from_string(serialized)
         return self._fuzzy_system_
 
-    def _fuzzy_system_description_section(self):
-        """Return the cached fuzzy_system dict, rehydrating it when needed."""
+    def _fuzzy_system_description(self):
+        """Return the fuzzy system section of the saved description (cached)."""
         desc = getattr(self, "_fuzzy_system_dict_", None)
         if isinstance(desc, Mapping):
             return desc
@@ -517,61 +531,42 @@ class _FuzzyCocoBase(BaseEstimator):
         if isinstance(root, Mapping):
             fs = root.get("fuzzy_system")
             if isinstance(fs, Mapping):
-                desc = copy.deepcopy(fs)
-                self._fuzzy_system_dict_ = desc
-                return desc
+                self._fuzzy_system_dict_ = copy.deepcopy(fs)
+                return self._fuzzy_system_dict_
         return None
 
-    def _ensure_rule_structure(self):
-        """Record which output variables each rule targets plus default rule order."""
-        rule_outputs = getattr(self, "_rule_output_vars_", None)
-        default_names = getattr(self, "_default_rule_names_", None)
-        if rule_outputs is not None and default_names is not None:
-            return rule_outputs, default_names
-
-        desc = self._fuzzy_system_description_section()
-        if not isinstance(desc, Mapping):
-            self._rule_output_vars_ = tuple()
-            self._default_rule_names_ = tuple()
-            return self._rule_output_vars_, self._default_rule_names_
-
-        rules_desc = desc.get("rules")
-        outputs: list[tuple[str, ...]] = []
-        if isinstance(rules_desc, Mapping):
-            for _, rule_spec in rules_desc.items():
-                if isinstance(rule_spec, Mapping):
-                    consequents = rule_spec.get("consequents")
-                    if isinstance(consequents, Mapping):
-                        outputs.append(tuple(consequents.keys()))
-                    else:
-                        outputs.append(tuple())
-                else:
-                    outputs.append(tuple())
-
-        defaults_desc = desc.get("default_rules")
-        default_order: tuple[str, ...]
-        if isinstance(defaults_desc, Mapping):
-            default_order = tuple(defaults_desc.keys())
-        else:
-            default_order = tuple()
-
-        self._rule_output_vars_ = tuple(outputs)
-        self._default_rule_names_ = default_order
-        return self._rule_output_vars_, self._default_rule_names_
-
     def _default_rule_activations_from_levels(self, rule_levels):
-        """Compute fallback activations for default rules from rule fire levels."""
-        rules_targets, default_names = self._ensure_rule_structure()
-        if not default_names:
+        """Compute default rule fallbacks based solely on rule fire levels."""
+        desc = self._fuzzy_system_description()
+        if not isinstance(desc, Mapping):
             return None
-        if not rules_targets:
-            return {name: 0.0 for name in default_names}
-        if len(rules_targets) != len(rule_levels):
+
+        defaults = desc.get("default_rules")
+        rules_desc = desc.get("rules")
+        if not isinstance(defaults, Mapping) or not isinstance(rules_desc, Mapping):
+            return None
+
+        rule_outputs: list[tuple[str, ...]] = []
+        for rule_def in rules_desc.values():
+            if isinstance(rule_def, Mapping):
+                consequents = rule_def.get("consequents")
+                if isinstance(consequents, Mapping):
+                    rule_outputs.append(tuple(consequents.keys()))
+                else:
+                    rule_outputs.append(tuple())
+            else:
+                rule_outputs.append(tuple())
+
+        if len(rule_outputs) != len(rule_levels):
+            return None
+
+        default_names = list(defaults.keys())
+        if not default_names:
             return None
 
         max_fire_by_var = {name: None for name in default_names}
-        for fire_level, targets in zip(rule_levels.tolist(), rules_targets, strict=False):
-            if not targets or not self._is_effective_fire_level(fire_level):
+        for fire_level, targets in zip(rule_levels.tolist(), rule_outputs, strict=False):
+            if not np.isfinite(fire_level) or fire_level <= _MISSING_DATA_DOUBLE:
                 continue
             for var in targets:
                 if var not in max_fire_by_var:
@@ -580,21 +575,15 @@ class _FuzzyCocoBase(BaseEstimator):
                 if current is None or fire_level > current:
                     max_fire_by_var[var] = float(fire_level)
 
-        default_map: dict[str, float] = {}
+        result: dict[str, float] = {}
         for name in default_names:
             max_fire = max_fire_by_var[name]
             if max_fire is None:
-                default_map[name] = 0.0
+                result[name] = 0.0
             else:
-                clipped = min(max(max_fire, 0.0), 1.0)
-                default_map[name] = max(0.0, 1.0 - clipped)
-        return default_map
-
-    @staticmethod
-    def _is_effective_fire_level(value):
-        if not np.isfinite(value):
-            return False
-        return value > _MISSING_DATA_DOUBLE
+                clipped = float(np.clip(max_fire, 0.0, 1.0))
+                result[name] = max(0.0, 1.0 - clipped)
+        return result
 
     def _predict_dataframe(self, dfin):
         """Predict using the live engine when available, else via saved description."""
@@ -606,6 +595,12 @@ class _FuzzyCocoBase(BaseEstimator):
         if not getattr(self, "description_", None):
             raise RuntimeError("Missing model description for prediction")
         return _fuzzycoco_core.FuzzyCoco.load_and_predict_from_dict(dfin, self.description_)
+
+    def _rule_activations_from_sample_values(self, sample_values):
+        """Compute RuleActivations for a validated 1D list of floats."""
+        values = self._compute_rule_fire_levels(sample_values)
+        default_map = self._default_rule_activations_from_levels(values)
+        return RuleActivations(values, default_map)
 
     def _compute_rule_fire_levels(self, sample):
         """Compute rule activations for a single sample (1D)."""
@@ -912,9 +907,7 @@ class _FuzzyCocoBase(BaseEstimator):
             raise ValueError(
                 f"Expected {self.n_features_in_} features, got {len(sample)}",
             )
-        values = self._compute_rule_fire_levels(sample)
-        default_map = self._default_rule_activations_from_levels(values)
-        return RuleActivations(values, default_map)
+        return self._rule_activations_from_sample_values(sample)
 
     def rules_stat_activations(self, X, threshold=1e-12, return_matrix=False, sort_by_impact=True):
         """Compute aggregate rule activations for a batch of samples.
@@ -928,7 +921,9 @@ class _FuzzyCocoBase(BaseEstimator):
         Returns:
             If ``return_matrix`` is False, a pandas DataFrame with per-rule statistics
             (mean, std, min, max, usage rates, and impact). If True, returns a tuple
-            ``(stats_df, activations_matrix)``.
+            ``(stats_df, activations_matrix)`` where ``activations_matrix`` is a
+            ``RuleActivationMatrix`` carrying a ``default_rules`` attribute that stores,
+            for each sample, a dict of fallback activations for the default rules.
         """
 
         check_is_fitted(self, attributes=["model_"])
@@ -952,33 +947,42 @@ class _FuzzyCocoBase(BaseEstimator):
                 f"Expected {self.n_features_in_} features, got {arr.shape[1]}",
             )
 
-        model = getattr(self, "model_", None)
-        if model is not None:
-            activations = np.vstack([model.rules_fire_from_values(row.astype(float).tolist()) for row in arr])
-        else:
-            from . import _fuzzycoco_core
+        activation_rows = []
+        default_rows = []
+        for row in arr:
+            sample_values = row.astype(float).tolist()
+            values = self._rule_activations_from_sample_values(sample_values)
+            activation_rows.append(np.asarray(values, dtype=float))
+            default_rows.append(values.default_rules)
 
-            matrix = _fuzzycoco_core._rules_fire_matrix_from_description(
-                self.description_,
-                arr.astype(float).tolist(),
-            )
-            activations = np.asarray(matrix, dtype=float)
+        activations_matrix = np.vstack(activation_rows)
+        default_payload = None
+        if any(dr is not None for dr in default_rows):
+            default_payload = tuple(default_rows)
+        activations = RuleActivationMatrix(activations_matrix, default_payload)
 
-        sums = activations.sum(axis=1, keepdims=True)
-        share = np.divide(activations, sums, out=np.zeros_like(activations), where=sums > 0)
+        activations_view = np.asarray(activations)
 
-        usage_rate = (activations >= threshold).mean(axis=0)
+        sums = activations_view.sum(axis=1, keepdims=True)
+        share = np.divide(
+            activations_view,
+            sums,
+            out=np.zeros_like(activations_view),
+            where=sums > 0,
+        )
+
+        usage_rate = (activations_view >= threshold).mean(axis=0)
         usage_rate_pct = 100.0 * usage_rate
         importance_pct = 100.0 * share.mean(axis=0)
         impact_pct = usage_rate * importance_pct
 
-        idx = self._rules_index(activations.shape[1])
+        idx = self._rules_index(activations_view.shape[1])
         stats = pd.DataFrame(
             {
-                "mean": activations.mean(axis=0),
-                "std": activations.std(axis=0),
-                "min": activations.min(axis=0),
-                "max": activations.max(axis=0),
+                "mean": activations_view.mean(axis=0),
+                "std": activations_view.std(axis=0),
+                "min": activations_view.min(axis=0),
+                "max": activations_view.max(axis=0),
                 "usage_rate": usage_rate,
                 "usage_rate_pct": usage_rate_pct,
                 "importance_pct": importance_pct,
