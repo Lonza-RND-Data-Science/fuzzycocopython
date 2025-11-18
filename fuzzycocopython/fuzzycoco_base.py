@@ -17,6 +17,7 @@ from ._fuzzycoco_core import DataFrame, FuzzyCoco, FuzzyCocoParams, FuzzySystem,
 from .fuzzycoco_plot_mixin import FuzzyCocoPlotMixin
 from .utils import (
     build_fuzzycoco_params,
+    generate_generic_labels,
     parse_fuzzy_system_from_description,
     to_linguistic_components,
     to_tables_components,
@@ -535,6 +536,53 @@ class _FuzzyCocoBase(BaseEstimator):
                 return self._fuzzy_system_dict_
         return None
 
+    def _default_rule_names(self):
+        """Return the ordered list of default rule names defined in the system."""
+        desc = self._fuzzy_system_description()
+        if isinstance(desc, Mapping):
+            defaults = desc.get("default_rules")
+            if isinstance(defaults, Mapping):
+                return list(defaults.keys())
+        return []
+
+    def _default_rule_labels(self):
+        """Human-readable labels for default rules, aligned with _default_rule_names."""
+        names = self._default_rule_names()
+        if not names:
+            return []
+
+        desc = self._fuzzy_system_description()
+        defaults = desc.get("default_rules") if isinstance(desc, Mapping) else None
+        variables = desc.get("variables", {}) if isinstance(desc, Mapping) else {}
+        outputs = variables.get("output", {}) if isinstance(variables, Mapping) else {}
+
+        label_lookup: dict[str, dict[str, str]] = {}
+        for var, sets in outputs.items():
+            if not isinstance(sets, Mapping):
+                continue
+            items = sorted(sets.items(), key=lambda kv: kv[1])
+            labels = generate_generic_labels(len(items))
+            var_map = label_lookup.setdefault(var, {})
+            for (orig_set, _pos), label in zip(items, labels, strict=False):
+                var_map[orig_set] = label
+
+        labels: list[str] = []
+        for name in names:
+            pretty = None
+            if isinstance(defaults, Mapping):
+                set_key = defaults.get(name)
+                if isinstance(set_key, str):
+                    pretty = label_lookup.get(name, {}).get(set_key)
+                    if pretty is None:
+                        suffix = set_key.split(".")[-1] if "." in set_key else set_key
+                        suffix = suffix.replace("_", " ").strip()
+                        if suffix:
+                            pretty = suffix.title()
+                    if pretty:
+                        pretty = f"ELSE {name} is {pretty}"
+            labels.append(pretty or f"default_{name}")
+        return labels
+
     def _default_rule_activations_from_levels(self, rule_levels):
         """Compute default rule fallbacks based solely on rule fire levels."""
         desc = self._fuzzy_system_description()
@@ -544,6 +592,10 @@ class _FuzzyCocoBase(BaseEstimator):
         defaults = desc.get("default_rules")
         rules_desc = desc.get("rules")
         if not isinstance(defaults, Mapping) or not isinstance(rules_desc, Mapping):
+            return None
+
+        default_names = list(defaults.keys())
+        if not default_names:
             return None
 
         rule_outputs: list[tuple[str, ...]] = []
@@ -558,10 +610,6 @@ class _FuzzyCocoBase(BaseEstimator):
                 rule_outputs.append(tuple())
 
         if len(rule_outputs) != len(rule_levels):
-            return None
-
-        default_names = list(defaults.keys())
-        if not default_names:
             return None
 
         max_fire_by_var = {name: None for name in default_names}
@@ -949,18 +997,40 @@ class _FuzzyCocoBase(BaseEstimator):
 
         activation_rows = []
         default_rows = []
+        has_default_payload = False
         for row in arr:
             sample_values = row.astype(float).tolist()
             values = self._rule_activations_from_sample_values(sample_values)
             activation_rows.append(np.asarray(values, dtype=float))
             default_rows.append(values.default_rules)
+            has_default_payload |= values.default_rules is not None
 
         activations_matrix = np.vstack(activation_rows)
-        default_payload = None
-        if any(dr is not None for dr in default_rows):
-            default_payload = tuple(default_rows)
-        activations = RuleActivationMatrix(activations_matrix, default_payload)
+        default_payload = tuple(default_rows) if has_default_payload else None
 
+        default_matrix = None
+        default_names = self._default_rule_names() if has_default_payload else []
+        default_labels = self._default_rule_labels() if has_default_payload else []
+        if has_default_payload and default_names:
+            default_matrix = np.zeros((activations_matrix.shape[0], len(default_names)), dtype=float)
+            for sample_idx, payload in enumerate(default_rows):
+                if payload is None:
+                    continue
+                for name_idx, name in enumerate(default_names):
+                    value = payload.get(name)
+                    if value is None:
+                        continue
+                    default_matrix[sample_idx, name_idx] = float(value)
+
+        if default_matrix is not None and default_names:
+            combined_matrix = np.hstack([activations_matrix, default_matrix])
+            default_idx_labels = default_labels or [f"default_{name}" for name in default_names]
+            matrix_labels = self._rules_index(activations_matrix.shape[1]) + default_idx_labels
+        else:
+            combined_matrix = activations_matrix
+            matrix_labels = self._rules_index(combined_matrix.shape[1])
+
+        activations = RuleActivationMatrix(combined_matrix, default_payload)
         activations_view = np.asarray(activations)
 
         sums = activations_view.sum(axis=1, keepdims=True)
@@ -976,7 +1046,6 @@ class _FuzzyCocoBase(BaseEstimator):
         importance_pct = 100.0 * share.mean(axis=0)
         impact_pct = usage_rate * importance_pct
 
-        idx = self._rules_index(activations_view.shape[1])
         stats = pd.DataFrame(
             {
                 "mean": activations_view.mean(axis=0),
@@ -988,7 +1057,7 @@ class _FuzzyCocoBase(BaseEstimator):
                 "importance_pct": importance_pct,
                 "impact_pct": impact_pct,
             },
-            index=idx,
+            index=matrix_labels,
         )
 
         if sort_by_impact:

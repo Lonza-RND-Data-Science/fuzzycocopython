@@ -380,6 +380,9 @@ def test_rules_stat_activations_matrix_carries_default_rules():
     assert len(matrix.default_rules) == 2
     assert matrix.default_rules[0]["target"] == pytest.approx(0.2)
     assert matrix.default_rules[1]["target"] == pytest.approx(0.2)
+    assert "ELSE target is Low" in stats.index
+    default_row = stats.loc["ELSE target is Low"]
+    assert pytest.approx(default_row["mean"], rel=1e-6) == 0.2
 
 
 def test_classifier_load_type_guard(tmp_path):
