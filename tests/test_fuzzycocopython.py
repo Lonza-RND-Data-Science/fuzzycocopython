@@ -262,6 +262,61 @@ def test_rules_stat_activations_empty_input_raises():
         clf.rules_stat_activations(empty)
 
 
+def test_rules_activations_exposes_default_rule_levels():
+    class DummyModel:
+        def __init__(self, values):
+            self._values = values
+
+        def rules_fire_from_values(self, sample):
+            return list(self._values)
+
+    clf = FuzzyCocoClassifier()
+    clf.feature_names_in_ = ["a", "b"]
+    clf.n_features_in_ = 2
+    clf.is_fitted_ = True
+    clf.model_ = DummyModel([0.25, 0.8, np.finfo(np.float64).min])
+    clf._rule_output_vars_ = (("target",), ("target",), ("other",))
+    clf._default_rule_names_ = ("target",)
+
+    activations = clf.rules_activations([0.0, 0.0])
+    assert isinstance(activations, np.ndarray)
+    assert activations.shape == (3,)
+    assert activations.default_rules == {"target": pytest.approx(0.2)}
+
+
+def test_rules_activations_uses_description_mapping_for_defaults():
+    class DummyModel:
+        def __init__(self, values):
+            self._values = values
+
+        def rules_fire_from_values(self, sample):
+            return list(self._values)
+
+    clf = FuzzyCocoClassifier()
+    description = _sample_description_single_output()
+    _prime_model_with_description(clf, description)
+    clf.feature_names_in_ = ["feature1"]
+    clf.n_features_in_ = 1
+    clf.is_fitted_ = True
+    clf.model_ = DummyModel([0.4])
+
+    activations = clf.rules_activations([0.1])
+    assert activations.default_rules == {"target": pytest.approx(0.6)}
+
+
+def test_rule_structure_extraction_tracks_default_order():
+    clf = FuzzyCocoClassifier()
+    description = _sample_description_multi_output()
+    _prime_model_with_description(clf, description)
+    clf.feature_names_in_ = ["feature1"]
+    clf.n_features_in_ = 1
+    clf.is_fitted_ = True
+
+    outputs, defaults = clf._ensure_rule_structure()
+    assert outputs == (("target", "other"),)
+    assert defaults == ("target", "other")
+
+
 def test_classifier_load_type_guard(tmp_path):
     X, _, y_reg = _generate_dataset(seed=17)
     reg = FuzzyCocoRegressor(random_state=2)

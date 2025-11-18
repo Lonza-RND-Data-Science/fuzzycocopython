@@ -23,6 +23,8 @@ from .utils import (
     to_views_components,
 )
 
+_MISSING_DATA_DOUBLE = np.finfo(np.float64).min
+
 
 @dataclass(frozen=True)
 class FitStepInfo:
@@ -33,6 +35,20 @@ class FitStepInfo:
     history: Sequence[float]
     model: FuzzyCoco
     estimator: _FuzzyCocoBase
+
+
+class RuleActivations(np.ndarray):
+    """NumPy array of rule fire levels carrying default rule activations as metadata."""
+
+    def __new__(cls, activations, default_rules=None):
+        obj = np.asarray(activations, dtype=float).view(cls)
+        obj.default_rules = None if not default_rules else dict(default_rules)
+        return obj
+
+    def __array_finalize__(self, parent):
+        if parent is None:
+            return
+        self.default_rules = getattr(parent, "default_rules", None)
 
 
 def save_model(model, filepath, *, compress=3):
@@ -491,6 +507,95 @@ class _FuzzyCocoBase(BaseEstimator):
         self._fuzzy_system_ = FuzzySystem.load_from_string(serialized)
         return self._fuzzy_system_
 
+    def _fuzzy_system_description_section(self):
+        """Return the cached fuzzy_system dict, rehydrating it when needed."""
+        desc = getattr(self, "_fuzzy_system_dict_", None)
+        if isinstance(desc, Mapping):
+            return desc
+
+        root = getattr(self, "description_", None)
+        if isinstance(root, Mapping):
+            fs = root.get("fuzzy_system")
+            if isinstance(fs, Mapping):
+                desc = copy.deepcopy(fs)
+                self._fuzzy_system_dict_ = desc
+                return desc
+        return None
+
+    def _ensure_rule_structure(self):
+        """Record which output variables each rule targets plus default rule order."""
+        rule_outputs = getattr(self, "_rule_output_vars_", None)
+        default_names = getattr(self, "_default_rule_names_", None)
+        if rule_outputs is not None and default_names is not None:
+            return rule_outputs, default_names
+
+        desc = self._fuzzy_system_description_section()
+        if not isinstance(desc, Mapping):
+            self._rule_output_vars_ = tuple()
+            self._default_rule_names_ = tuple()
+            return self._rule_output_vars_, self._default_rule_names_
+
+        rules_desc = desc.get("rules")
+        outputs: list[tuple[str, ...]] = []
+        if isinstance(rules_desc, Mapping):
+            for _, rule_spec in rules_desc.items():
+                if isinstance(rule_spec, Mapping):
+                    consequents = rule_spec.get("consequents")
+                    if isinstance(consequents, Mapping):
+                        outputs.append(tuple(consequents.keys()))
+                    else:
+                        outputs.append(tuple())
+                else:
+                    outputs.append(tuple())
+
+        defaults_desc = desc.get("default_rules")
+        default_order: tuple[str, ...]
+        if isinstance(defaults_desc, Mapping):
+            default_order = tuple(defaults_desc.keys())
+        else:
+            default_order = tuple()
+
+        self._rule_output_vars_ = tuple(outputs)
+        self._default_rule_names_ = default_order
+        return self._rule_output_vars_, self._default_rule_names_
+
+    def _default_rule_activations_from_levels(self, rule_levels):
+        """Compute fallback activations for default rules from rule fire levels."""
+        rules_targets, default_names = self._ensure_rule_structure()
+        if not default_names:
+            return None
+        if not rules_targets:
+            return {name: 0.0 for name in default_names}
+        if len(rules_targets) != len(rule_levels):
+            return None
+
+        max_fire_by_var = {name: None for name in default_names}
+        for fire_level, targets in zip(rule_levels.tolist(), rules_targets, strict=False):
+            if not targets or not self._is_effective_fire_level(fire_level):
+                continue
+            for var in targets:
+                if var not in max_fire_by_var:
+                    continue
+                current = max_fire_by_var[var]
+                if current is None or fire_level > current:
+                    max_fire_by_var[var] = float(fire_level)
+
+        default_map: dict[str, float] = {}
+        for name in default_names:
+            max_fire = max_fire_by_var[name]
+            if max_fire is None:
+                default_map[name] = 0.0
+            else:
+                clipped = min(max(max_fire, 0.0), 1.0)
+                default_map[name] = max(0.0, 1.0 - clipped)
+        return default_map
+
+    @staticmethod
+    def _is_effective_fire_level(value):
+        if not np.isfinite(value):
+            return False
+        return value > _MISSING_DATA_DOUBLE
+
     def _predict_dataframe(self, dfin):
         """Predict using the live engine when available, else via saved description."""
         model = getattr(self, "model_", None)
@@ -506,7 +611,6 @@ class _FuzzyCocoBase(BaseEstimator):
         """Compute rule activations for a single sample (1D)."""
         model = getattr(self, "model_", None)
         if model is not None:
-            print(f"Model is {model}")
             values = model.rules_fire_from_values(sample)
         else:
             from . import _fuzzycoco_core
@@ -797,7 +901,10 @@ class _FuzzyCocoBase(BaseEstimator):
             X: Single sample as 1D array-like, pandas Series, or single-row DataFrame.
 
         Returns:
-            1D numpy array of length ``n_rules`` with activation strengths in [0, 1].
+            1D numpy array (``RuleActivations``) of length ``n_rules`` with fire levels
+            in [0, 1]. The array exposes a ``default_rules`` attribute containing a
+            dict mapping each default rule (one per output variable) to its computed
+            fallback activation.
         """
         check_is_fitted(self, attributes=["model_"])
         sample = self._as_1d_sample(X)
@@ -805,7 +912,9 @@ class _FuzzyCocoBase(BaseEstimator):
             raise ValueError(
                 f"Expected {self.n_features_in_} features, got {len(sample)}",
             )
-        return self._compute_rule_fire_levels(sample)
+        values = self._compute_rule_fire_levels(sample)
+        default_map = self._default_rule_activations_from_levels(values)
+        return RuleActivations(values, default_map)
 
     def rules_stat_activations(self, X, threshold=1e-12, return_matrix=False, sort_by_impact=True):
         """Compute aggregate rule activations for a batch of samples.
